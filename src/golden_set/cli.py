@@ -163,8 +163,17 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def force_utf8_output() -> None:
+    """stdout과 stderr를 utf-8로 바꾼다. cp949 등에 없는 글자가 본문에 있어도 죽지 않게 한다."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:  # capsys 같은 대체 스트림에는 없다
+            reconfigure(encoding="utf-8", errors="replace")
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI 진입점. 불합격 파일이 하나라도 있으면 1을 돌려준다."""
+    force_utf8_output()
     args = build_parser().parse_args(argv)
     return args.func(args)
 

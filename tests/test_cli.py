@@ -105,3 +105,23 @@ def test_compare_unsupported_or_missing_exit_2(tmp_path: Path) -> None:
     xlsx.touch()
     assert main(["compare", str(xlsx)]) == 2
     assert main(["compare", str(tmp_path / "none.pdf")]) == 2
+
+
+# ---- 검토 1: cp949 출력에서 죽지 않는다 ----
+
+
+def test_samples_survive_cp949_stdout(tmp_path: Path) -> None:
+    import os
+
+    # \~ 는 U+00A0(줄바꿈 없는 공백)이 되고, 이 글자는 cp949에 없다
+    body = "".join(c if ord(c) < 128 else f"\\u{ord(c)}?" for c in KO_TEXT.replace("\n", " "))
+    (tmp_path / "nbsp.rtf").write_bytes(("{\\rtf1\\ansi " + body + "\\~end\\par}").encode("ascii"))
+    proc = subprocess.run(
+        [sys.executable, "-m", "golden_set.cli", "validate", str(tmp_path), "--samples", "1"],
+        capture_output=True,
+        env={**os.environ, "PYTHONIOENCODING": "cp949"},
+    )
+    out, err = proc.stdout.decode("utf-8"), proc.stderr.decode("utf-8", errors="replace")
+    assert "Traceback" not in err and "Traceback" not in out
+    assert proc.returncode in (0, 1)
+    assert " end" in out and "강호에" in out  # 재설정 뒤에는 utf-8로 나온다
