@@ -1,0 +1,37 @@
+[project]
+name = "golden-set"
+version = "0.1.0"
+description = "pdf/pptx/docx/txt 문서를 같은 형태의 Document 리스트로 읽고 추출 품질을 숫자로 검증한다"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "langchain-core>=1.0",
+    "docx2txt>=0.9",
+    "pymupdf>=1.24.3",
+    "python-pptx>=1.0",
+]
+
+[project.optional-dependencies]
+# 비교용 대안 로더 (cli compare)
+compare = [
+    "python-docx>=1.1",
+    "pdfplumber>=0.11",
+    "unstructured[pptx]>=0.16; python_version < '3.14'",
+]
+dev = [
+    "pytest>=8",
+    "python-docx>=1.1",   # docx 픽스처 생성에 필요
+]
+
+[project.scripts]
+golden-set = "golden_set.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/golden_set"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
