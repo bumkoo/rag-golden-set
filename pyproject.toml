@@ -18,10 +18,18 @@ compare = [
     "pdfplumber>=0.11",
     "unstructured[pptx]>=0.16; python_version < '3.14'",
 ]
+# 골든 후보 생성기 (cli ping, generate). 확인한 버전: ragas 0.4.4, deepeval 4.3.4, openai 1.109.1 (NOTES.md 8장)
+generate = [
+    "openai>=1.109",
+    "ragas>=0.4.4",
+    "rapidfuzz>=3.0",     # ragas OverlapScoreBuilder가 쓰는데 ragas 기본 의존성에는 없다
+    "deepeval>=4.3.4",
+]
 dev = [
     "pytest>=8",
     "python-docx>=1.1",   # docx 픽스처 생성에 필요
     "striprtf>=0.0.26",   # 실제 문서 검증에서 RTF 파서 대조용
+    "golden-set[generate]",  # 생성기 변환·실패 처리 테스트는 실제 도구 객체로 한다
 ]
 
 [project.scripts]
@@ -36,3 +44,9 @@ packages = ["src/golden_set"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# deepeval은 pytest 플러그인을 자동 등록한다. 우리 테스트에는 필요 없고, 시작 때 .deepeval/ 폴더를 만들며 사용 통계 모듈을 import하므로 끈다.
+addopts = "-p no:deepeval"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    "ignore:.*langchain-community.*:DeprecationWarning",  # ragas가 import하는 langchain_community의 경고
+]

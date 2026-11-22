@@ -1,4 +1,4 @@
-"""명령행 진입점: python -m golden_set.cli validate <폴더> | compare <파일> | prepare <폴더>"""
+"""명령행 진입점: python -m golden_set.cli validate | compare | prepare | ping | generate | check"""
 
 import argparse
 import csv
@@ -193,6 +193,86 @@ def cmd_prepare(args: argparse.Namespace) -> int:
     return 1 if errors else 0
 
 
+def _llm_settings(args: argparse.Namespace, need_embed: bool):
+    """LLM 옵션을 환경 변수와 합쳐 LLMSettings를 만든다. 접속 정보가 없으면 ConfigError."""
+    from golden_set.llm import settings_from_env
+
+    return settings_from_env(
+        need_embed=need_embed,
+        concurrency=args.concurrency,
+        timeout=args.timeout,
+        max_tokens=args.max_tokens,
+        temperature=args.temperature,
+        disable_thinking=not args.keep_thinking,
+        json_mode=not args.no_json_mode,
+    )
+
+
+def cmd_ping(args: argparse.Namespace) -> int:
+    """LLM과 임베딩에 한 번씩 요청해 연결과 JSON 응답 여부를 확인한다."""
+    from golden_set.llm import EMBED_ENV, LLM_ENV, ConfigError, ping
+
+    try:
+        settings = _llm_settings(args, need_embed=False)
+    except ConfigError as e:
+        print(f"error: {e}  (환경 변수: {', '.join(LLM_ENV)}, {', '.join(EMBED_ENV)})", file=sys.stderr)
+        return 2
+    result = ping(settings)
+    print(f"llm    {'ok' if result.llm_ok else 'FAIL'}  json={'yes' if result.llm_json else 'NO'}  {result.llm_detail}")
+    print(f"       reasoning_content field={'yes' if result.reasoning_separated else 'no'}  <think> in content={'yes' if result.think_in_content else 'no'}")
+    if result.embed_ok is None:
+        print(f"embed  skipped ({EMBED_ENV[0]} not set)")
+    else:
+        print(f"embed  {'ok' if result.embed_ok else 'FAIL'}  {result.embed_detail}")
+    return 0 if result.ok else 1
+
+
+def cmd_generate(args: argparse.Namespace) -> int:
+    """chunks.jsonl로 생성기 하나를 돌려 candidates.jsonl을 만든다."""
+    from golden_set.candidates import write_candidates
+    from golden_set.generators import GenerateError, GenerateReport, get_generator
+    from golden_set.llm import EMBED_ENV, LLM_ENV, ConfigError
+    from golden_set.prepare import read_chunks
+
+    try:
+        settings = _llm_settings(args, need_embed=args.generator == "ragas")
+    except ConfigError as e:
+        print(f"error: {e}  (환경 변수: {', '.join(LLM_ENV)}, {', '.join(EMBED_ENV)})", file=sys.stderr)
+        return 2
+    try:
+        chunks = read_chunks(args.chunks)
+    except (OSError, ValueError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
+    options: dict = {"language": args.language}
+    if args.generator == "ragas":
+        options["adapt_prompts"] = not args.no_adapt_prompts
+    else:
+        options["context_chunks"] = args.context_chunks
+    report = GenerateReport(args.generator)
+    try:
+        generator = get_generator(args.generator, settings, report=report, **options)
+        candidates = generator.generate(chunks, args.size)
+    except GenerateError as e:
+        print(report.summary())
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    print(report.summary())
+    write_candidates(candidates, args.out)
+    print(f"saved: {args.out}  ({len(candidates)} candidates, chunks={len(chunks)})")
+    return 0 if candidates else 1
+
+
+def _add_llm_options(p: argparse.ArgumentParser) -> None:
+    g = p.add_argument_group("LLM 옵션 (접속 정보는 환경 변수 GOLDEN_LLM_* / GOLDEN_EMBED_*)")
+    g.add_argument("--concurrency", type=int, default=4, metavar="N", help="동시 요청 수 (기본 4)")
+    g.add_argument("--timeout", type=float, default=120.0, metavar="SEC", help="요청 하나의 제한 시간 (기본 120)")
+    g.add_argument("--max-tokens", type=int, default=4096, metavar="N", help="응답 최대 토큰 (기본 4096)")
+    g.add_argument("--temperature", type=float, default=0.2, help="도구가 온도를 주지 않는 요청의 온도 (기본 0.2)")
+    g.add_argument("--keep-thinking", action="store_true", help="추론 끄기(chat_template_kwargs.enable_thinking=false)를 보내지 않는다")
+    g.add_argument("--no-json-mode", action="store_true", help="response_format=json_object 를 붙이지 않는다 (서버가 거부할 때)")
+
+
 def build_parser() -> argparse.ArgumentParser:
     """명령행 파서를 만든다."""
     parser = argparse.ArgumentParser(prog="golden_set.cli", description="문서 로더 출력 검증과 골든 후보 생성")
@@ -217,6 +297,21 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--min-chars", type=int, default=100, metavar="N", help="공백 제거 후 이보다 짧은 청크는 버린다 (기본 100)")
     p.add_argument("--header-ratio", type=float, default=0.6, metavar="R", help="이 비율 이상의 쪽에서 반복되는 첫/끝 줄을 지운다 (기본 0.6)")
     p.set_defaults(func=cmd_prepare)
+
+    pi = sub.add_parser("ping", help="LLM과 임베딩 서버에 한 번씩 요청해 연결과 JSON 응답을 확인한다")
+    _add_llm_options(pi)
+    pi.set_defaults(func=cmd_ping)
+
+    g = sub.add_parser("generate", help="chunks.jsonl로 골든 후보를 생성해 candidates.jsonl로 저장한다")
+    g.add_argument("chunks", metavar="chunks.jsonl")
+    g.add_argument("--generator", required=True, choices=["ragas", "deepeval"])
+    g.add_argument("--size", type=int, default=30, metavar="N", help="만들 후보 수 (기본 30)")
+    g.add_argument("--out", default="candidates.jsonl", metavar="candidates.jsonl")
+    g.add_argument("--language", default="auto", choices=["auto", "ko", "en"], help="질문 언어. auto는 청크의 한글 비율로 정한다")
+    g.add_argument("--no-adapt-prompts", action="store_true", help="ragas: 프롬프트 예시 번역(adapt_prompts)을 하지 않는다")
+    g.add_argument("--context-chunks", type=int, default=3, choices=[1, 2, 3], help="deepeval: context 하나에 넣는 이웃 청크 수 (기본 3)")
+    _add_llm_options(g)
+    g.set_defaults(func=cmd_generate)
     return parser
 
 
