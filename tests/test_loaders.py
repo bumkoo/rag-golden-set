@@ -168,3 +168,56 @@ def test_alt_loaders_wrap_errors(tmp_path: Path, name: str, loader: str) -> None
     p.touch()
     with pytest.raises(LoadError):
         load_path(str(p), loader)
+
+
+# ---- .doc (내용이 RTF인 파일) ----
+
+from golden_set.loaders import RtfDocLoader, UnsupportedError
+from golden_set.loaders.doc import rtf_to_text
+
+
+def rtf_escape(text: str) -> str:
+    """한글을 법제처 파일과 같은 \\uN? 표기로 바꾼다."""
+    return "".join(c if ord(c) < 128 else f"\\u{ord(c)}?" for c in text)
+
+
+def make_rtf_doc(path: Path) -> Path:
+    blob = b"\xff\xd8{\\par}Exif\x00}"  # 중괄호와 제어어처럼 보이는 바이트가 든 이진 그림 데이터
+    body = (
+        "{\\rtf1\\ansi\\ansicpg1252\\deff0{\\fonttbl{\\f0\\froman Times New Roman;}}"
+        "{\\colortbl\\red0\\green0\\blue0;}"
+        "{\\footer \\pard " + rtf_escape("바닥글 국가법령정보센터") + "{\\*\\shppict{\\pict\\jpegblip\n"
+    ).encode("ascii") + b"\\bin" + str(len(blob)).encode() + b" " + blob + (
+        "}}\\par}"
+        "\\pard\\plain\\f0 " + rtf_escape("제1조(목적) 이 법은 A\\{B\\} 를 정한다.") + "\\par\r\n"
+        "{\\b " + rtf_escape("제2조(정의)") + "}\\tab " + rtf_escape("①항 내용") + "\\par}"
+    ).encode("ascii")
+    path.write_bytes(body)
+    return path
+
+
+def test_rtf_doc_body_only(tmp_path: Path) -> None:
+    p = make_rtf_doc(tmp_path / "law.doc")
+    docs = load_path(str(p))
+    assert len(docs) == 1
+    assert docs[0].page_content == "제1조(목적) 이 법은 A{B} 를 정한다.\n제2조(정의)\t①항 내용\n"
+    assert_common_meta(docs[0], p, "doc", "rtf")
+    assert isinstance(RtfDocLoader(), Loader)
+
+
+def test_rtf_codepage_bytes_are_decoded_as_pairs() -> None:
+    encoded = "".join(f"\\'{b:02x}" for b in "한글".encode("cp949"))
+    assert rtf_to_text(("{\\rtf1\\ansi\\ansicpg949 " + encoded + " ok}").encode("ascii")) == "한글 ok"
+
+
+def test_rtf_unicode_fallback_chars_are_skipped() -> None:
+    assert rtf_to_text(b"{\\rtf1\\uc1 \\u44032?\\u45208\\'3f\\uc2 \\u45796??x}") == "가나다x"
+    assert rtf_to_text(b"{\\rtf1 \\u-10179?}") == chr(65536 - 10179)  # 음수는 16비트로 되돌린다
+
+
+@pytest.mark.parametrize("content", [b"", b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1 binary word", b"plain text"])
+def test_doc_that_is_not_rtf_is_unsupported(tmp_path: Path, content: bytes) -> None:
+    p = tmp_path / "old.doc"
+    p.write_bytes(content)
+    with pytest.raises(UnsupportedError, match="^unsupported$"):
+        load_path(str(p))

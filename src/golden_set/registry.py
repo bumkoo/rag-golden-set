@@ -6,6 +6,7 @@ from pathlib import Path
 from langchain_core.documents import Document
 
 from golden_set.loaders.base import LoadError, Loader, UnsupportedError
+from golden_set.loaders.doc import RtfDocLoader
 from golden_set.loaders.docx import Docx2txtLoader, PythonDocxLoader
 from golden_set.loaders.pdf import PdfplumberLoader, PyMuPDFLoader
 from golden_set.loaders.pptx import PythonPptxLoader, UnstructuredPptxLoader
@@ -17,6 +18,8 @@ _LOADERS: dict[str, list[Loader]] = {
     ".docx": [Docx2txtLoader(), PythonDocxLoader()],
     ".pdf": [PyMuPDFLoader(), PdfplumberLoader()],
     ".pptx": [PythonPptxLoader(), UnstructuredPptxLoader()],
+    ".doc": [RtfDocLoader()],  # 내용이 RTF인 .doc만. 바이너리 .doc는 "unsupported"
+    ".rtf": [RtfDocLoader()],
 }
 
 

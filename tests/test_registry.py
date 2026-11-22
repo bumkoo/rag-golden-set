@@ -20,7 +20,7 @@ def test_get_loader_unknown_name() -> None:
         get_loader("a.txt", "nope")
 
 
-@pytest.mark.parametrize("name", ["a.xlsx", "a.doc", "a.ppt", "noext"])
+@pytest.mark.parametrize("name", ["a.xlsx", "a.ppt", "a.hwp", "noext"])
 def test_get_loader_unsupported_extension(name: str) -> None:
     with pytest.raises(UnsupportedError, match="unsupported"):
         get_loader(name)

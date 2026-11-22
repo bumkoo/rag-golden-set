@@ -51,6 +51,8 @@ def run_one(path: str, loader_name: str | None = None) -> Row:
     start = time.perf_counter()
     try:
         docs = loader.load(path)
+    except UnsupportedError as e:  # 예: 확장자는 .doc인데 내용이 RTF가 아닌 파일
+        return Row(path, "-", "unsupported", reason=str(e))
     except LoadError as e:
         return Row(path, loader.name, "error", reason=str(e))
     elapsed = time.perf_counter() - start

@@ -1,6 +1,6 @@
 # golden_set
 
-pdf, pptx, docx, txt 문서를 같은 형태의 `list[Document]`로 읽고, 로더의 추출 품질을 숫자로 검증하는 패키지다.
+pdf, pptx, docx, txt 문서(와 내용이 RTF인 doc)를 같은 형태의 `list[Document]`로 읽고, 로더의 추출 품질을 숫자로 검증하는 패키지다.
 출력은 다음 단계인 Ragas 골든셋 생성의 입력이 된다.
 
 ## 설치
@@ -36,6 +36,12 @@ pytest
 ```
 
 픽스처 파일은 테스트가 직접 만든다. 같은 파일을 디스크에 깔아 보려면 `python tests/make_fixtures.py`를 실행한다 (`tests/fixtures/`, git에는 넣지 않는다).
+
+실제 문서로 파싱을 검증하려면 문서 폴더를 환경 변수로 준다. 검사 항목은 [NOTES.md](NOTES.md) 6장에 있다.
+
+```bash
+GOLDEN_SET_REAL_DOCS=<문서 폴더> pytest tests/test_real_docs.py -v
+```
 
 ## 출력 예시: validate
 

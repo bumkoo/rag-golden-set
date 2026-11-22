@@ -1,0 +1,36 @@
+$ GOLDEN_SET_REAL_DOCS=<형법 pdf/doc/pptx, 민법 doc, 상법 pdf> pytest tests/test_real_docs.py -v
+============================= test session starts ==============================
+platform linux -- Python 3.13.18, pytest-9.2.0, pluggy-1.7.0 -- /home/user/rag-golden-set/.venv/bin/python
+configfile: pyproject.toml
+collecting ... collected 20 items
+tests/test_real_docs.py::test_real_docs_folder_has_files PASSED          [  5%]
+tests/test_real_docs.py::test_pdf_pages_are_numbered_and_not_empty[-_____21044_20260910.pdf] PASSED [ 10%]
+tests/test_real_docs.py::test_pdf_pages_are_numbered_and_not_empty[-_____22007_20261002.pdf] PASSED [ 15%]
+tests/test_real_docs.py::test_pdf_two_loaders_extract_the_same_characters_on_every_page[-_____21044_20260910.pdf] PASSED [ 20%]
+tests/test_real_docs.py::test_pdf_two_loaders_extract_the_same_characters_on_every_page[-_____22007_20261002.pdf] PASSED [ 25%]
+tests/test_real_docs.py::test_pdf_two_loaders_agree_on_reading_order[-_____21044_20260910.pdf] PASSED [ 30%]
+tests/test_real_docs.py::test_pdf_two_loaders_agree_on_reading_order[-_____22007_20261002.pdf] PASSED [ 35%]
+tests/test_real_docs.py::test_pdf_article_numbers_have_no_gap[-_____21044_20260910.pdf] PASSED [ 40%]
+tests/test_real_docs.py::test_pdf_article_numbers_have_no_gap[-_____22007_20261002.pdf] PASSED [ 45%]
+tests/test_real_docs.py::test_pdf_matches_doc_of_the_same_law[-_____21044_20260910.pdf] SKIPPED [ 50%]
+tests/test_real_docs.py::test_pdf_matches_doc_of_the_same_law[-_____22007_20261002.pdf] PASSED [ 55%]
+tests/test_real_docs.py::test_doc_has_no_rtf_residue[-_____21454_20260317.doc] PASSED [ 60%]
+tests/test_real_docs.py::test_doc_has_no_rtf_residue[-_____22007_20261002.doc] PASSED [ 65%]
+tests/test_real_docs.py::test_doc_matches_independent_rtf_parser[-_____21454_20260317.doc] PASSED [ 70%]
+tests/test_real_docs.py::test_doc_matches_independent_rtf_parser[-_____22007_20261002.doc] PASSED [ 75%]
+tests/test_real_docs.py::test_doc_article_numbers_have_no_gap[-_____21454_20260317.doc] PASSED [ 80%]
+tests/test_real_docs.py::test_doc_article_numbers_have_no_gap[-_____22007_20261002.doc] PASSED [ 85%]
+tests/test_real_docs.py::test_pptx_every_slide_has_exactly_the_characters_in_its_xml[python-pptx-505fb023-__-PPT__.pptx] PASSED [ 90%]
+tests/test_real_docs.py::test_pptx_every_slide_has_exactly_the_characters_in_its_xml[unstructured-505fb023-__-PPT__.pptx] PASSED [ 95%]
+tests/test_real_docs.py::test_pptx_every_text_box_survives_as_one_piece[505fb023-__-PPT__.pptx] PASSED [100%]
+======================== 19 passed, 1 skipped in 35.12s ========================
+
+$ python -m golden_set.cli validate <같은 폴더>
+loader       status  doc_count  empty_ratio  avg_chars  broken_ratio  hangul_ratio  meta_ok  elapsed_sec  path  (reasons)
+rtf          pass    1          0.000        160102.0   0.0000        0.846         True     0.215        003a901a-_____21454_20260317.doc
+python-pptx  pass    118        0.034        335.5      0.0000        0.801         True     0.363        505fb023-__-PPT__.pptx
+pymupdf      pass    156        0.000        1779.3     0.0000        0.803         True     0.320        7ac6ddd6-_____21044_20260910.pdf
+pymupdf      pass    38         0.000        1637.2     0.0000        0.752         True     0.047        7db4efeb-_____22007_20261002.pdf
+rtf          pass    1          0.000        56098.0    0.0000        0.751         True     0.069        e3872e5a-_____22007_20261002.doc
+
+pass=5  fail=0  error=0  unsupported=0
