@@ -27,7 +27,10 @@ PDF_PAGES = [
     "둘째 쪽 본문입니다. 제자는 스승의 뜻을 헤아리지 못했다. Page two body text for extraction.",
     "셋째 쪽 본문입니다. 봄이 오자 그는 다시 길을 떠났다. Page three body text for extraction.",
 ]
-SLIDES = [("첫 슬라이드 제목", "첫 슬라이드 본문 내용 body one"), ("둘째 슬라이드 제목", "둘째 슬라이드 본문 내용 body two")]
+SLIDES = [
+    ("첫 슬라이드: 문파의 내력", "창건 이래 삼대에 걸쳐 장문인이 바뀌었고, 그때마다 문규도 조금씩 달라졌다. History of the sect."),
+    ("둘째 슬라이드: 사제 관계", "스승과 제자의 갈등은 무공이 아니라 신의의 문제에서 시작되었다. Conflict between master and pupil."),
+]
 NOTE = "발표자 노트: 여기서 질문을 받는다."
 
 
@@ -90,3 +93,18 @@ def pdf_with_blank(tmp_path: Path) -> Path:
 @pytest.fixture
 def pptx_file(tmp_path: Path) -> Path:
     return make_pptx(tmp_path / "two_slides.pptx")
+
+
+def build_fixture_dir(root: Path) -> Path:
+    """형식별 샘플과 실패 사례를 한 폴더에 깐다. cli 테스트와 README 출력 예시에 쓴다."""
+    (root / "sub").mkdir(parents=True, exist_ok=True)
+    (root / "ko_utf8.txt").write_text(KO_TEXT, encoding="utf-8")
+    (root / "ko_cp949.txt").write_text(KO_TEXT, encoding="cp949")
+    make_docx(root / "two_paragraphs.docx")
+    make_pdf(root / "three_pages.pdf")
+    make_pdf(root / "sub" / "with_blank.pdf", [PDF_PAGES[0], "", PDF_PAGES[2], ""])
+    make_pptx(root / "sub" / "two_slides.pptx")
+    (root / "broken.pdf").touch()
+    (root / "old.doc").touch()
+    (root / "sheet.xlsx").touch()
+    return root
