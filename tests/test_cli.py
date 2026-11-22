@@ -184,6 +184,75 @@ def test_prepare_chunk_options(tmp_path: Path) -> None:
     assert len(chunks) > 5 and all(len(c.page_content) <= 300 for c in chunks)
 
 
+# ---- 3·4단계: generate (생성기는 가짜로 바꾼다. 실제 호출은 test_real_calls.py) ----
+
+
+class FakeGenerator:
+    name = "fake"
+
+    def __init__(self, settings, report=None, **options):
+        from golden_set.generators import GenerateReport
+
+        self.settings, self.options, self.report = settings, options, report or GenerateReport("fake")
+
+    def generate(self, chunks, size):
+        from golden_set.candidates import GoldenCandidate, Source, make_id
+
+        self.report.requested, self.report.produced = size, min(size, len(chunks))
+        self.report.skip("sample: ValueError: broken json")
+        return [
+            GoldenCandidate(make_id("ragas", i + 1), f"질문 {i}?", "답.", [c.page_content], [Source(c.metadata["chunk_id"], c.metadata["source"], c.metadata.get("page"))], "t", "ko", "ragas", self.settings.llm.model)
+            for i, c in enumerate(chunks[:size])
+        ]
+
+
+def _env(monkeypatch) -> None:
+    monkeypatch.setenv("GOLDEN_LLM_BASE_URL", "http://llm.test/v1")
+    monkeypatch.setenv("GOLDEN_LLM_MODEL", "qwen-test")
+    monkeypatch.setenv("GOLDEN_EMBED_BASE_URL", "http://emb.test/v1")
+    monkeypatch.setenv("GOLDEN_EMBED_MODEL", "bge-test")
+
+
+def test_generate_writes_candidates_and_report(tmp_path: Path, capsys, monkeypatch) -> None:
+    import golden_set.generators as base  # cli는 패키지에서 get_generator를 가져온다
+    from golden_set.candidates import read_candidates
+
+    _env(monkeypatch)
+    captured: dict = {}
+
+    def fake_get_generator(name, settings, report=None, **options):
+        captured.update(name=name, settings=settings, options=options)
+        return FakeGenerator(settings, report, **options)
+
+    monkeypatch.setattr(base, "get_generator", fake_get_generator)
+    root = tmp_path / "docs"
+    root.mkdir()
+    (root / "a.txt").write_text(" ".join(f"{n}번째 문장은 길게 이어진다." for n in range(100)), encoding="utf-8")
+    chunks = tmp_path / "chunks.jsonl"
+    assert main(["prepare", str(root), "--out", str(chunks), "--chunk-size", "300", "--overlap", "0"]) == 0
+    out = tmp_path / "candidates.jsonl"
+
+    assert main(["generate", str(chunks), "--generator", "deepeval", "--size", "2", "--out", str(out), "--concurrency", "2", "--keep-thinking", "--context-chunks", "2"]) == 0
+    printed = capsys.readouterr().out
+    assert "generator=deepeval  requested=2  produced=2  skipped=1" in printed and "skipped x1: sample" in printed
+    assert f"saved: {out}  (2 candidates" in printed
+    assert captured["name"] == "deepeval" and captured["options"] == {"language": "auto", "context_chunks": 2}
+    assert captured["settings"].concurrency == 2 and captured["settings"].disable_thinking is False and captured["settings"].llm.model == "qwen-test"
+    cands = read_candidates(str(out))
+    assert len(cands) == 2 and cands[0].model == "qwen-test" and cands[0].sources[0].chunk_id
+
+    assert main(["generate", str(chunks), "--generator", "ragas", "--size", "0", "--out", str(out)]) == 1  # 후보 0개
+    assert captured["options"] == {"language": "auto", "adapt_prompts": True}
+
+
+def test_generate_bad_chunks_file_exit_2(tmp_path: Path, monkeypatch) -> None:
+    _env(monkeypatch)
+    assert main(["generate", str(tmp_path / "none.jsonl"), "--generator", "ragas"]) == 2
+    bad = tmp_path / "bad.jsonl"
+    bad.write_text('{"text": "no id"}\n', encoding="utf-8")
+    assert main(["generate", str(bad), "--generator", "ragas"]) == 2
+
+
 # ---- 검토 1: cp949 출력에서 죽지 않는다 ----
 
 

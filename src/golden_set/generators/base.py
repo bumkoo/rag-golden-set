@@ -56,6 +56,30 @@ class GenerateReport:
         return "\n".join(lines)
 
 
+# ---- JSON 꺼내기 ----
+
+
+def extract_json(text: str):
+    """응답 본문에서 첫 JSON 값(객체나 배열)을 꺼낸다. ```json 울타리가 있으면 그 안을 먼저 본다.
+
+    앞뒤의 설명 문장은 무시한다. JSON이 없거나 깨져 있으면 ValueError.
+    """
+    import json
+
+    body = text
+    fence = re.search(r"```(?:json)?\s*(.*?)```", text, re.S)
+    if fence:
+        body = fence.group(1)
+    starts = [i for i in (body.find("{"), body.find("[")) if i != -1]
+    if not starts:
+        raise ValueError("no json object in response")
+    try:
+        value, _ = json.JSONDecoder().raw_decode(body[min(starts) :])
+    except json.JSONDecodeError as e:
+        raise ValueError(f"invalid json: {e.msg} at {e.pos}") from e
+    return value
+
+
 # ---- 언어 ----
 
 KO_HANGUL_RATIO = 0.3  # 글자(한글 음절 + 로마자) 중 한글 음절 비율이 이 이상이면 ko

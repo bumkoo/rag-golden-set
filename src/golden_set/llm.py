@@ -152,8 +152,31 @@ def _message_dicts(messages: list) -> list[dict]:
     return out
 
 
+class _Limiter:
+    """동시 요청 수 제한. 동기 호출은 스레드 세마포어, 비동기 호출은 이벤트 루프마다 asyncio 세마포어를 쓴다."""
+
+    def __init__(self, limit: int):
+        self.limit = max(1, limit)
+        self._sync = threading.BoundedSemaphore(self.limit)
+        self._async: dict[int, object] = {}
+
+    def sync(self):
+        return self._sync
+
+    def asyncio(self):
+        import asyncio
+
+        loop_id = id(asyncio.get_running_loop())
+        if loop_id not in self._async:
+            self._async = {loop_id: asyncio.Semaphore(self.limit)}  # 루프가 바뀌면 이전 것은 버린다
+        return self._async[loop_id]
+
+
 class ChatClient:
-    """채팅 완성 요청. openai 패키지의 클라이언트를 감싼다. 테스트에서는 client 인자로 가짜를 넣는다."""
+    """채팅 완성 요청. openai 패키지의 클라이언트를 감싼다. 테스트에서는 client 인자로 가짜를 넣는다.
+
+    동시 요청 수(settings.concurrency)는 여기서도 제한한다. 도구 쪽 동시성 설정과 무관하게 서버에는 이 수 이상 동시에 가지 않는다.
+    """
 
     def __init__(self, endpoint: Endpoint, settings: LLMSettings | None = None, log: CallLog | None = None, client=None, aclient=None):
         self.endpoint = endpoint
@@ -161,6 +184,7 @@ class ChatClient:
         self.log = log if log is not None else CallLog()
         self._client = client
         self._aclient = aclient
+        self._limiter = _Limiter(self.settings.concurrency)
 
     @property
     def model(self) -> str:
@@ -212,7 +236,9 @@ class ChatClient:
     def complete(self, messages: list, json: bool = False, temperature: float | None = None, n: int = 1) -> list[Completion]:
         """요청 하나. 실패하면 LLMError를 내고 CallLog에 사유를 남긴다."""
         try:
-            completions = self._parse(self._sync().chat.completions.create(**self.request_kwargs(messages, json, temperature, n)))
+            with self._limiter.sync():
+                response = self._sync().chat.completions.create(**self.request_kwargs(messages, json, temperature, n))
+            completions = self._parse(response)
         except LLMError as e:
             self.log.fail(str(e))
             raise
@@ -225,7 +251,8 @@ class ChatClient:
     async def acomplete(self, messages: list, json: bool = False, temperature: float | None = None, n: int = 1) -> list[Completion]:
         """complete의 비동기판."""
         try:
-            response = await self._async().chat.completions.create(**self.request_kwargs(messages, json, temperature, n))
+            async with self._limiter.asyncio():
+                response = await self._async().chat.completions.create(**self.request_kwargs(messages, json, temperature, n))
             completions = self._parse(response)
         except LLMError as e:
             self.log.fail(str(e))

@@ -129,6 +129,8 @@ class FakeOpenAI:
     def _next(self, kwargs):
         self.calls.append(kwargs)
         r = self.responses.pop(0) if len(self.responses) > 1 else self.responses[0]
+        if callable(r):  # 프롬프트를 보고 답을 정하는 응답기. kwargs를 받아 응답을 돌려준다
+            r = r(kwargs)
         if isinstance(r, Exception):
             raise r
         return r
@@ -175,7 +177,7 @@ def fake_chat(*texts, **settings):
     """정해진 본문을 차례로 돌려주는 ChatClient. 동기·비동기 요청 모두 같은 큐를 쓴다."""
     from golden_set.llm import ChatClient, Endpoint, LLMSettings
 
-    responses = [t if isinstance(t, Exception) else completion(choice(t)) for t in texts]
+    responses = [t if isinstance(t, Exception) or callable(t) else completion(choice(t)) for t in texts]
     fake = FakeOpenAI(*responses)
     ep = Endpoint("http://llm.test/v1", "qwen-test")
     return ChatClient(ep, LLMSettings(llm=ep, **settings), client=fake, aclient=fake.as_async), fake
