@@ -245,3 +245,14 @@ def test_doc_that_is_not_rtf_is_unsupported(tmp_path: Path, content: bytes) -> N
     p.write_bytes(content)
     with pytest.raises(UnsupportedError, match="^unsupported$"):
         load_path(str(p))
+
+
+# ---- 검토 3, 4: txt의 BOM ----
+
+
+def test_txt_utf8_bom_is_removed(tmp_path: Path) -> None:
+    p = tmp_path / "bom.txt"
+    p.write_bytes(b"\xef\xbb\xbf" + KO_TEXT.encode("utf-8"))
+    docs = load_path(str(p))
+    assert docs[0].page_content == KO_TEXT
+    assert not docs[0].page_content.startswith("﻿")
