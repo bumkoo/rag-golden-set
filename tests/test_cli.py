@@ -18,13 +18,14 @@ def test_validate_exit_1_when_any_file_fails(tmp_path: Path, capsys) -> None:
         reader = csv.DictReader(f)
         assert reader.fieldnames == CSV_COLUMNS
         rows = {Path(r["path"]).name: r for r in reader}
-    assert len(rows) == 9
+    assert len(rows) == 10
     status = {name: r["status"] for name, r in rows.items()}
     assert status == {
         "ko_utf8.txt": "pass",
         "ko_cp949.txt": "pass",
         "two_paragraphs.docx": "pass",
         "three_pages.pdf": "pass",
+        "with_header.pdf": "pass",
         "two_slides.pptx": "pass",
         "with_blank.pdf": "fail",
         "broken.pdf": "error",
@@ -40,7 +41,7 @@ def test_validate_exit_1_when_any_file_fails(tmp_path: Path, capsys) -> None:
     assert rows["broken.pdf"]["doc_count"] == "" and rows["broken.pdf"]["reasons"]
 
     printed = capsys.readouterr().out
-    assert "pass=5  fail=1  error=1  unsupported=2" in printed
+    assert "pass=6  fail=1  error=1  unsupported=2" in printed
     assert all(name in printed for name in rows)
 
 
@@ -105,6 +106,82 @@ def test_compare_unsupported_or_missing_exit_2(tmp_path: Path) -> None:
     xlsx.touch()
     assert main(["compare", str(xlsx)]) == 2
     assert main(["compare", str(tmp_path / "none.pdf")]) == 2
+
+
+# ---- 2단계: prepare ----
+
+
+def test_prepare_writes_chunks_and_reports_removed_headers(tmp_path: Path, capsys) -> None:
+    from golden_set.prepare import read_chunks
+
+    root = tmp_path / "docs"
+    root.mkdir()
+    body = "강호의 규율은 무공이 아니라 신의에서 나온다고 장문인은 말했다. " * 4
+    make_pdf(root / "law.pdf", [f"법제처 국가법령정보센터\n{body}제{n}조 본문\n형법 - {n} -" for n in range(1, 6)])
+    (root / "note.txt").write_text(KO_TEXT * 3, encoding="utf-8")
+    (root / "sheet.xlsx").touch()
+    out = tmp_path / "chunks.jsonl"
+
+    assert main(["prepare", str(root), "--out", str(out)]) == 0
+    printed = capsys.readouterr().out
+    assert "removed from" in printed and "[head] x5" in printed and "[tail] x5" in printed
+    assert "sheet.xlsx  (unsupported)" in printed
+    assert f"saved: {out}" in printed
+
+    chunks = read_chunks(str(out))
+    assert len(chunks) >= 6
+    texts = [c.page_content for c in chunks]
+    assert not any("법제처" in t or "형법 -" in t for t in texts)
+    assert all(len(t) <= 1200 for t in texts)
+    pdf_chunks = [c for c in chunks if c.metadata["file_type"] == "pdf"]
+    assert {c.metadata["page"] for c in pdf_chunks} == {1, 2, 3, 4, 5}
+    assert all(c.metadata["chunk_id"] and c.metadata["loader"] == "pymupdf" for c in pdf_chunks)
+
+
+def test_prepare_on_fixture_dir_removes_header_pdf_lines(tmp_path: Path, capsys) -> None:
+    from golden_set.prepare import read_chunks
+
+    root = build_fixture_dir(tmp_path / "fx")
+    out = tmp_path / "chunks.jsonl"
+    assert main(["prepare", str(root), "--out", str(out)]) == 1  # broken.pdf 때문에 1
+    printed = capsys.readouterr().out
+    assert "removed from" in printed and "with_header.pdf" in printed and "[tail] x5" in printed
+    header_chunks = [c for c in read_chunks(str(out)) if c.metadata["source"].endswith("with_header.pdf")]
+    assert len(header_chunks) == 5
+    assert not any("국가법령정보센터" in c.page_content or c.page_content.endswith("-") for c in header_chunks)
+
+
+def test_prepare_exit_1_on_load_error_but_still_writes(tmp_path: Path) -> None:
+    root = tmp_path / "docs"
+    root.mkdir()
+    (root / "a.txt").write_text(KO_TEXT * 3, encoding="utf-8")
+    (root / "broken.pdf").touch()
+    out = tmp_path / "chunks.jsonl"
+    assert main(["prepare", str(root), "--out", str(out)]) == 1
+    assert out.exists()
+
+
+def test_prepare_exit_2_when_no_chunks_or_bad_args(tmp_path: Path) -> None:
+    root = tmp_path / "docs"
+    root.mkdir()
+    (root / "short.txt").write_text("제목만", encoding="utf-8")
+    out = tmp_path / "chunks.jsonl"
+    assert main(["prepare", str(root), "--out", str(out)]) == 2
+    assert not out.exists()
+    assert main(["prepare", str(tmp_path / "nope"), "--out", str(out)]) == 2
+    assert main(["prepare", str(root), "--out", str(out), "--chunk-size", "100", "--overlap", "100"]) == 2
+
+
+def test_prepare_chunk_options(tmp_path: Path) -> None:
+    from golden_set.prepare import read_chunks
+
+    root = tmp_path / "docs"
+    root.mkdir()
+    (root / "a.txt").write_text(" ".join(f"{n}번째 문장은 길게 이어진다." for n in range(200)), encoding="utf-8")
+    out = tmp_path / "chunks.jsonl"
+    assert main(["prepare", str(root), "--out", str(out), "--chunk-size", "300", "--overlap", "0", "--min-chars", "50"]) == 0
+    chunks = read_chunks(str(out))
+    assert len(chunks) > 5 and all(len(c.page_content) <= 300 for c in chunks)
 
 
 # ---- 검토 1: cp949 출력에서 죽지 않는다 ----

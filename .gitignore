@@ -5,3 +5,11 @@ __pycache__/
 dist/
 report.csv
 tests/fixtures/
+# 생성 산출물과 실제 문서. 저장소에 넣지 않는다
+chunks.jsonl
+candidates.jsonl
+*.candidates.jsonl
+/data/
+/data-out/
+.deepeval/
+.deepeval_telemetry.txt

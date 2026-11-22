@@ -1,4 +1,4 @@
-"""리포트 출력 진입점: python -m golden_set.cli validate <폴더> | compare <파일>"""
+"""명령행 진입점: python -m golden_set.cli validate <폴더> | compare <파일> | prepare <폴더>"""
 
 import argparse
 import csv
@@ -10,7 +10,7 @@ from pathlib import Path
 from langchain_core.documents import Document
 
 from golden_set.loaders.base import LoadError, UnsupportedError
-from golden_set.registry import get_loader, list_files, loaders_for
+from golden_set.registry import get_loader, list_files, load_dir, loaders_for
 from golden_set.validate import FileReport, validate_docs
 
 SAMPLE_CHARS = 300
@@ -145,9 +145,57 @@ def cmd_compare(args: argparse.Namespace) -> int:
     return 0 if rows[0].status == "pass" else 1
 
 
+def cmd_prepare(args: argparse.Namespace) -> int:
+    """폴더를 읽고 반복 머리글·바닥글을 지운 뒤 청크로 나눠 chunks.jsonl로 저장한다."""
+    from collections import Counter
+
+    from golden_set.prepare import ChunkSettings, CleanSettings, chunk_docs, clean_docs, write_chunks
+
+    try:
+        docs, failures = load_dir(args.folder)
+    except LoadError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
+    try:
+        chunk_settings = ChunkSettings(size=args.chunk_size, overlap=args.overlap, min_chars=args.min_chars)
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
+
+    errors = [f for f in failures if f.reason != "unsupported"]
+    for f in failures:
+        print(f"skip  {f.path}  ({f.reason})")
+
+    cleaned, reports = clean_docs(docs, CleanSettings(min_ratio=args.header_ratio))
+    for r in reports:
+        if not r.removed:
+            continue
+        print(f"\nremoved from {r.source} ({r.page_count} pages):")
+        for line in r.removed:
+            print(f"  [{line.position}] x{line.count}  {line.example!r}  (pattern {line.pattern!r})")
+
+    chunks = chunk_docs(cleaned, chunk_settings)
+    per_file = Counter(str(c.metadata.get("source", "")) for c in chunks)
+    print(f"\n{'chunks':>6}  source")
+    for source in sorted({str(d.metadata.get('source', '')) for d in docs}):
+        print(f"{per_file.get(source, 0):>6}  {source}")
+    sizes = [len(c.page_content) for c in chunks]
+    print(
+        f"\ndocs={len(docs)}  chunks={len(chunks)}  "
+        f"chars min/avg/max={min(sizes) if sizes else 0}/{(sum(sizes) / len(sizes)) if sizes else 0:.0f}/{max(sizes) if sizes else 0}  "
+        f"errors={len(errors)}"
+    )
+    if not chunks:
+        print("error: no chunks", file=sys.stderr)
+        return 2
+    write_chunks(chunks, args.out)
+    print(f"saved: {args.out}")
+    return 1 if errors else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """명령행 파서를 만든다."""
-    parser = argparse.ArgumentParser(prog="golden_set.cli", description="문서 로더 출력 검증 리포트")
+    parser = argparse.ArgumentParser(prog="golden_set.cli", description="문서 로더 출력 검증과 골든 후보 생성")
     sub = parser.add_subparsers(dest="command", required=True)
 
     v = sub.add_parser("validate", help="폴더의 파일을 모두 읽어 파일별 지표를 출력한다")
@@ -160,6 +208,15 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("file")
     c.add_argument("--samples", type=int, default=0, metavar="N", help="로더마다 본문 앞 300자를 N개 출력한다")
     c.set_defaults(func=cmd_compare)
+
+    p = sub.add_parser("prepare", help="폴더를 읽고 머리글·바닥글을 지운 뒤 청크로 나눠 JSONL로 저장한다")
+    p.add_argument("folder")
+    p.add_argument("--out", default="chunks.jsonl", metavar="chunks.jsonl", help="청크 JSONL 저장 경로")
+    p.add_argument("--chunk-size", type=int, default=1200, metavar="N", help="청크 최대 글자 수 (기본 1200)")
+    p.add_argument("--overlap", type=int, default=150, metavar="N", help="청크 사이 겹침 글자 수 (기본 150)")
+    p.add_argument("--min-chars", type=int, default=100, metavar="N", help="공백 제거 후 이보다 짧은 청크는 버린다 (기본 100)")
+    p.add_argument("--header-ratio", type=float, default=0.6, metavar="R", help="이 비율 이상의 쪽에서 반복되는 첫/끝 줄을 지운다 (기본 0.6)")
+    p.set_defaults(func=cmd_prepare)
     return parser
 
 
