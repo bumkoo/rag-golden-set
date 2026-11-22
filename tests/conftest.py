@@ -19,3 +19,74 @@ def txt_cp949(tmp_path: Path) -> Path:
     p = tmp_path / "ko_cp949.txt"
     p.write_text(KO_TEXT, encoding="cp949")
     return p
+
+
+DOCX_PARAGRAPHS = ["첫째 문단입니다. 사부는 끝내 검을 뽑지 않았다.", "Second paragraph in English, mixed with 한국어."]
+PDF_PAGES = [
+    "첫째 쪽 본문입니다. 산문 밖에는 눈이 내리고 있었다. Page one body text for extraction.",
+    "둘째 쪽 본문입니다. 제자는 스승의 뜻을 헤아리지 못했다. Page two body text for extraction.",
+    "셋째 쪽 본문입니다. 봄이 오자 그는 다시 길을 떠났다. Page three body text for extraction.",
+]
+SLIDES = [("첫 슬라이드 제목", "첫 슬라이드 본문 내용 body one"), ("둘째 슬라이드 제목", "둘째 슬라이드 본문 내용 body two")]
+NOTE = "발표자 노트: 여기서 질문을 받는다."
+
+
+def make_docx(path: Path, paragraphs: list[str] = DOCX_PARAGRAPHS) -> Path:
+    import docx
+
+    d = docx.Document()
+    for text in paragraphs:
+        d.add_paragraph(text)
+    d.save(str(path))
+    return path
+
+
+def make_pdf(path: Path, pages: list[str] = PDF_PAGES) -> Path:
+    """쪽마다 한 줄을 넣은 pdf를 만든다. 빈 문자열은 빈 쪽이 된다."""
+    import pymupdf
+
+    pdf = pymupdf.open()
+    for text in pages:
+        page = pdf.new_page()
+        if text:
+            page.insert_textbox(pymupdf.Rect(50, 50, 550, 300), text, fontname="korea", fontsize=10)
+    pdf.save(str(path))
+    pdf.close()
+    return path
+
+
+def make_pptx(path: Path, slides: list[tuple[str, str]] = SLIDES, note_on_last: str = NOTE, blank_slides: int = 0) -> Path:
+    from pptx import Presentation
+
+    prs = Presentation()
+    slide = None
+    for title, body in slides:
+        slide = prs.slides.add_slide(prs.slide_layouts[1])
+        slide.shapes.title.text = title
+        slide.placeholders[1].text = body
+    if slide is not None and note_on_last:
+        slide.notes_slide.notes_text_frame.text = note_on_last
+    for _ in range(blank_slides):
+        prs.slides.add_slide(prs.slide_layouts[6])
+    prs.save(str(path))
+    return path
+
+
+@pytest.fixture
+def docx_file(tmp_path: Path) -> Path:
+    return make_docx(tmp_path / "two_paragraphs.docx")
+
+
+@pytest.fixture
+def pdf_file(tmp_path: Path) -> Path:
+    return make_pdf(tmp_path / "three_pages.pdf")
+
+
+@pytest.fixture
+def pdf_with_blank(tmp_path: Path) -> Path:
+    return make_pdf(tmp_path / "with_blank.pdf", [PDF_PAGES[0], "", PDF_PAGES[2], ""])
+
+
+@pytest.fixture
+def pptx_file(tmp_path: Path) -> Path:
+    return make_pptx(tmp_path / "two_slides.pptx")
