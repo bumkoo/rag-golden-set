@@ -212,7 +212,31 @@ def test_rtf_codepage_bytes_are_decoded_as_pairs() -> None:
 
 def test_rtf_unicode_fallback_chars_are_skipped() -> None:
     assert rtf_to_text(b"{\\rtf1\\uc1 \\u44032?\\u45208\\'3f\\uc2 \\u45796??x}") == "가나다x"
-    assert rtf_to_text(b"{\\rtf1 \\u-10179?}") == chr(65536 - 10179)  # 음수는 16비트로 되돌린다
+    assert rtf_to_text(b"{\\rtf1 \\u-21504?}") == "가"  # 음수는 16비트로 되돌린다 (U+AC00)
+
+
+# ---- 검토 2: 서로게이트 쌍 ----
+
+
+def test_rtf_surrogate_pair_becomes_one_character() -> None:
+    text = rtf_to_text(rb"{\rtf1\ansi\ansicpg949\uc1 A\u-10179?\u-8704?B}")
+    assert text == "A\U0001F600B"
+    assert text.encode("utf-8") == "A\U0001F600B".encode("utf-8")
+
+
+@pytest.mark.parametrize(
+    "rtf,expected",
+    [
+        (rb"{\rtf1 A\u-10179?B}", "A\ufffdB"),  # 상위만
+        (rb"{\rtf1 A\u-8704?B}", "A\ufffdB"),  # 하위만
+        (rb"{\rtf1 A\u-8704?\u-10179?B}", "A\ufffd\ufffdB"),  # 순서가 뒤집힘
+        (rb"{\rtf1 \u-10179? \u-8704?}", "\ufffd \ufffd"),  # 사이에 다른 글자
+    ],
+)
+def test_rtf_lone_surrogate_becomes_replacement_char(rtf: bytes, expected: str) -> None:
+    text = rtf_to_text(rtf)
+    assert text == expected
+    text.encode("utf-8")
 
 
 @pytest.mark.parametrize("content", [b"", b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1 binary word", b"plain text"])

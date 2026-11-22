@@ -101,7 +101,19 @@ def rtf_to_text(data: bytes) -> str:
                 flush()
                 out.append(chunk.decode(codepage, errors="replace"))
     flush()
-    return "".join(out)
+    return _fix_surrogates("".join(out))
+
+
+_SURROGATE_PAIR = re.compile("[\ud800-\udbff][\udc00-\udfff]")
+_LONE_SURROGATE = re.compile("[\ud800-\udfff]")
+
+
+def _fix_surrogates(text: str) -> str:
+    """\\u로 따로 온 서로게이트 쌍을 한 글자로 합치고, 짝이 없는 것은 U+FFFD로 바꾼다."""
+    text = _SURROGATE_PAIR.sub(
+        lambda m: m.group().encode("utf-16", "surrogatepass").decode("utf-16"), text
+    )
+    return _LONE_SURROGATE.sub("\ufffd", text)
 
 
 class RtfDocLoader:
