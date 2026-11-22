@@ -256,3 +256,31 @@ def test_txt_utf8_bom_is_removed(tmp_path: Path) -> None:
     docs = load_path(str(p))
     assert docs[0].page_content == KO_TEXT
     assert not docs[0].page_content.startswith("﻿")
+
+
+@pytest.mark.parametrize("encoding", ["utf-16", "utf-16-le", "utf-16-be"])
+def test_txt_utf16_with_bom(tmp_path: Path, encoding: str) -> None:
+    import codecs
+
+    bom = {"utf-16-le": codecs.BOM_UTF16_LE, "utf-16-be": codecs.BOM_UTF16_BE}.get(encoding, b"")
+    p = tmp_path / "utf16.txt"
+    p.write_bytes(bom + KO_TEXT.encode(encoding))  # "utf-16"은 인코더가 BOM을 직접 붙인다
+    docs = load_path(str(p))
+    assert docs[0].page_content == KO_TEXT
+
+
+def test_txt_utf16_without_bom_is_not_guessed(tmp_path: Path) -> None:
+    p = tmp_path / "nobom.txt"
+    p.write_bytes(KO_TEXT.encode("utf-16-le"))
+    try:
+        text = load_path(str(p))[0].page_content
+    except LoadError:
+        return
+    assert text != KO_TEXT  # 읽히더라도 utf-16으로 추측해서 읽은 것은 아니다
+
+
+def test_txt_broken_utf16_raises_load_error(tmp_path: Path) -> None:
+    p = tmp_path / "odd.txt"
+    p.write_bytes(b"\xff\xfe" + "가나다".encode("utf-16-le") + b"\x00")  # 홀수 바이트
+    with pytest.raises(LoadError):
+        load_path(str(p))

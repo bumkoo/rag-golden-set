@@ -4,6 +4,7 @@ from langchain_core.documents import Document
 
 from golden_set.loaders.base import LoadError, make_doc
 
+UTF16_BOMS = (b"\xff\xfe", b"\xfe\xff")
 ENCODINGS = ("utf-8-sig", "cp949")  # utf-8-sig는 BOM이 있으면 떼고, 없으면 utf-8과 같다
 
 
@@ -20,6 +21,11 @@ class TxtLoader:
                 raw = f.read()
         except OSError as e:
             raise LoadError(f"cannot read file: {e}") from e
+        if raw.startswith(UTF16_BOMS):  # Windows 메모장의 "유니코드". BOM이 없는 UTF-16은 추측하지 않는다
+            try:
+                return [make_doc(raw.decode("utf-16"), path, self.name)]
+            except UnicodeDecodeError as e:
+                raise LoadError(f"has UTF-16 BOM but cannot decode as utf-16: {e}") from e
         for encoding in ENCODINGS:
             try:
                 text = raw.decode(encoding)
