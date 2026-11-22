@@ -1,4 +1,4 @@
-"""리포트 출력 진입점: python -m golden_set.cli validate <폴더>"""
+"""리포트 출력 진입점: python -m golden_set.cli validate <폴더> | compare <파일>"""
 
 import argparse
 import csv
@@ -10,7 +10,7 @@ from pathlib import Path
 from langchain_core.documents import Document
 
 from golden_set.loaders.base import LoadError, UnsupportedError
-from golden_set.registry import get_loader, list_files
+from golden_set.registry import get_loader, list_files, loaders_for
 from golden_set.validate import FileReport, validate_docs
 
 SAMPLE_CHARS = 300
@@ -127,6 +127,22 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 1 if counts["fail"] or counts["error"] else 0
 
 
+def cmd_compare(args: argparse.Namespace) -> int:
+    """파일 하나에 그 형식의 모든 로더를 돌려 지표를 나란히 출력한다. 첫 줄이 기본 로더다."""
+    if not Path(args.file).is_file():
+        print(f"error: not a file: {args.file}", file=sys.stderr)
+        return 2
+    loaders = loaders_for(args.file)
+    if not loaders:
+        print(f"error: unsupported: {args.file}", file=sys.stderr)
+        return 2
+    rows = [run_one(args.file, loader.name) for loader in loaders]
+    print_table(rows)
+    if args.samples:
+        print_samples(rows, args.samples)
+    return 0 if rows[0].status == "pass" else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     """명령행 파서를 만든다."""
     parser = argparse.ArgumentParser(prog="golden_set.cli", description="문서 로더 출력 검증 리포트")
@@ -137,6 +153,11 @@ def build_parser() -> argparse.ArgumentParser:
     v.add_argument("--out", metavar="report.csv", help="표를 CSV로 저장한다")
     v.add_argument("--samples", type=int, default=0, metavar="N", help="파일마다 본문 앞 300자를 N개 출력한다")
     v.set_defaults(func=cmd_validate)
+
+    c = sub.add_parser("compare", help="파일 하나에 그 형식의 모든 로더를 돌려 지표를 나란히 출력한다")
+    c.add_argument("file")
+    c.add_argument("--samples", type=int, default=0, metavar="N", help="로더마다 본문 앞 300자를 N개 출력한다")
+    c.set_defaults(func=cmd_compare)
     return parser
 
 

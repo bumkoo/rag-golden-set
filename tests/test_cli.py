@@ -72,3 +72,36 @@ def test_module_entry_point_exit_code(tmp_path: Path) -> None:
     )
     assert proc.returncode == 1
     assert "with_blank.pdf" in proc.stdout
+
+
+# ---- 4단계: compare ----
+
+
+def test_compare_runs_every_loader_for_the_format(tmp_path: Path, capsys) -> None:
+    p = make_pdf(tmp_path / "b.pdf")
+    assert main(["compare", str(p)]) == 0
+    lines = capsys.readouterr().out.strip().splitlines()
+    assert len(lines) == 3  # 머리줄 + 로더 2개
+    assert lines[1].split()[:3] == ["pymupdf", "pass", "3"]
+    assert lines[2].split()[:3] == ["pdfplumber", "pass", "3"]
+
+
+def test_compare_samples_per_loader(tmp_path: Path, capsys) -> None:
+    p = make_pdf(tmp_path / "b.pdf")
+    main(["compare", str(p), "--samples", "1"])
+    printed = capsys.readouterr().out
+    assert "[pymupdf] page=1" in printed and "[pdfplumber] page=1" in printed
+
+
+def test_compare_exit_1_when_default_loader_fails(tmp_path: Path) -> None:
+    assert main(["compare", str(make_pdf(tmp_path / "blank.pdf", ["", ""]))]) == 1
+    broken = tmp_path / "broken.pdf"
+    broken.touch()
+    assert main(["compare", str(broken)]) == 1
+
+
+def test_compare_unsupported_or_missing_exit_2(tmp_path: Path) -> None:
+    xlsx = tmp_path / "a.xlsx"
+    xlsx.touch()
+    assert main(["compare", str(xlsx)]) == 2
+    assert main(["compare", str(tmp_path / "none.pdf")]) == 2

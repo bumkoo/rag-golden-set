@@ -110,3 +110,61 @@ def test_zero_byte_file_raises_load_error(tmp_path: Path, name: str) -> None:
     p.touch()
     with pytest.raises(LoadError):
         load_path(str(p))
+
+
+# ---- 4단계: 비교용 대안 로더 ----
+
+from golden_set.loaders import PdfplumberLoader, PythonDocxLoader, UnstructuredPptxLoader
+
+
+@pytest.mark.parametrize("loader", [PythonDocxLoader(), PdfplumberLoader(), UnstructuredPptxLoader()])
+def test_alt_loaders_satisfy_protocol(loader) -> None:
+    assert isinstance(loader, Loader)
+
+
+def test_python_docx_contains_both_paragraphs_and_table(tmp_path: Path) -> None:
+    import docx
+
+    d = docx.Document()
+    d.add_paragraph(DOCX_PARAGRAPHS[0])
+    table = d.add_table(rows=1, cols=2)
+    table.cell(0, 0).text, table.cell(0, 1).text = "문파", "화산파"
+    d.add_paragraph(DOCX_PARAGRAPHS[1])
+    p = tmp_path / "t.docx"
+    d.save(str(p))
+
+    docs = load_path(str(p), "python-docx")
+    assert len(docs) == 1
+    text = docs[0].page_content
+    assert text.index(DOCX_PARAGRAPHS[0]) < text.index("문파\t화산파") < text.index(DOCX_PARAGRAPHS[1])
+    assert_common_meta(docs[0], p, "docx", "python-docx")
+
+
+def test_pdfplumber_pages_and_blank_pages(pdf_file: Path, pdf_with_blank: Path) -> None:
+    docs = load_path(str(pdf_file), "pdfplumber")
+    assert [d.metadata["page"] for d in docs] == [1, 2, 3]
+    for doc, expected in zip(docs, PDF_PAGES):
+        assert squash(doc.page_content) == squash(expected)
+        assert_common_meta(doc, pdf_file, "pdf", "pdfplumber")
+    blank = load_path(str(pdf_with_blank), "pdfplumber")
+    assert [d.page_content for d in blank][1::2] == ["", ""] and len(blank) == 4
+
+
+def test_unstructured_pptx_slides_notes_and_blank_slides(tmp_path: Path) -> None:
+    pytest.importorskip("unstructured.partition.pptx")
+    p = make_pptx(tmp_path / "u.pptx", blank_slides=2)
+    docs = load_path(str(p), "unstructured")
+    assert [d.metadata["page"] for d in docs] == [1, 2, 3, 4]
+    for doc, (title, body) in zip(docs, SLIDES):
+        assert title in doc.page_content and body in doc.page_content
+        assert_common_meta(doc, p, "pptx", "unstructured")
+    assert NOTE in docs[1].page_content and NOTE not in docs[0].page_content
+    assert [d.page_content for d in docs[2:]] == ["", ""]
+
+
+@pytest.mark.parametrize("name,loader", [("e.pdf", "pdfplumber"), ("e.docx", "python-docx"), ("e.pptx", "unstructured")])
+def test_alt_loaders_wrap_errors(tmp_path: Path, name: str, loader: str) -> None:
+    p = tmp_path / name
+    p.touch()
+    with pytest.raises(LoadError):
+        load_path(str(p), loader)

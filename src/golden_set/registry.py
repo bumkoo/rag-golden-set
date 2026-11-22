@@ -6,17 +6,17 @@ from pathlib import Path
 from langchain_core.documents import Document
 
 from golden_set.loaders.base import LoadError, Loader, UnsupportedError
-from golden_set.loaders.docx import Docx2txtLoader
-from golden_set.loaders.pdf import PyMuPDFLoader
-from golden_set.loaders.pptx import PythonPptxLoader
+from golden_set.loaders.docx import Docx2txtLoader, PythonDocxLoader
+from golden_set.loaders.pdf import PdfplumberLoader, PyMuPDFLoader
+from golden_set.loaders.pptx import PythonPptxLoader, UnstructuredPptxLoader
 from golden_set.loaders.txt import TxtLoader
 
 # 확장자마다 로더 목록. 맨 앞이 기본 로더, 나머지는 비교용 대안이다.
 _LOADERS: dict[str, list[Loader]] = {
     ".txt": [TxtLoader()],
-    ".docx": [Docx2txtLoader()],
-    ".pdf": [PyMuPDFLoader()],
-    ".pptx": [PythonPptxLoader()],
+    ".docx": [Docx2txtLoader(), PythonDocxLoader()],
+    ".pdf": [PyMuPDFLoader(), PdfplumberLoader()],
+    ".pptx": [PythonPptxLoader(), UnstructuredPptxLoader()],
 }
 
 

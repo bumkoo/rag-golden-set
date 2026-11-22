@@ -71,3 +71,19 @@ def test_load_dir_recurses_and_collects_failures(tmp_path: Path) -> None:
 def test_load_dir_not_a_directory(tmp_path: Path) -> None:
     with pytest.raises(LoadError):
         load_dir(str(tmp_path / "nope"))
+
+
+# ---- 4단계: 대안 로더 등록 ----
+
+from golden_set.registry import loaders_for
+
+
+def test_alt_loaders_registered_after_default() -> None:
+    assert [l.name for l in loaders_for("a.pdf")] == ["pymupdf", "pdfplumber"]
+    assert [l.name for l in loaders_for("a.docx")] == ["docx2txt", "python-docx"]
+    assert [l.name for l in loaders_for("a.pptx")] == ["python-pptx", "unstructured"]
+    assert [l.name for l in loaders_for("a.txt")] == ["stdlib"]
+    assert loaders_for("a.xlsx") == []
+    assert get_loader("a.pdf", "pdfplumber").name == "pdfplumber"
+    with pytest.raises(UnsupportedError):
+        get_loader("a.pdf", "docx2txt")  # 다른 형식의 로더 이름

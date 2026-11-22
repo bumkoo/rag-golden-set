@@ -55,3 +55,18 @@ docx2txt     pass         1          0.000        73.0       0.0000        0.373
 
 pass=5  fail=1  error=1  unsupported=2
 ```
+
+`--samples`와 CSV까지 포함한 전체 출력은 [reports/validate.txt](reports/validate.txt)에 있다.
+
+## 출력 예시: compare
+
+`python -m golden_set.cli compare tests/fixtures/three_pages.pdf` (첫 줄이 기본 로더)
+
+```text
+loader      status  doc_count  empty_ratio  avg_chars  broken_ratio  hangul_ratio  meta_ok  elapsed_sec  path  (reasons)
+pymupdf     pass    3          0.000        67.7       0.0000        0.406         True     0.102        tests/fixtures/three_pages.pdf
+pdfplumber  pass    3          0.000        66.7       0.0000        0.406         True     0.085        tests/fixtures/three_pages.pdf
+```
+
+다른 형식의 비교 출력은 [reports/compare.txt](reports/compare.txt), pytest 실행 결과 전문은 [reports/pytest.txt](reports/pytest.txt)에 있다.
+계획과 달라진 점과 남은 문제는 [NOTES.md](NOTES.md)를 본다.

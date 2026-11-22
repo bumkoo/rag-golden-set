@@ -43,3 +43,40 @@ class PythonPptxLoader:
             return docs
         except Exception as e:
             raise LoadError(f"{self.name}: {type(e).__name__}: {e}") from e
+
+
+class UnstructuredPptxLoader:
+    """비교용 대안. unstructured의 partition_pptx 요소를 슬라이드별로 묶는다.
+
+    unstructured는 노트를 그 슬라이드 본문보다 먼저 내보내고 본문과 구분해 주지 않으므로,
+    이 로더에서는 노트가 본문 앞에 온다.
+    """
+
+    name = "unstructured"
+    extensions = (".pptx",)
+
+    def load(self, path: str) -> list[Document]:
+        """pptx 파일을 슬라이드별 Document 리스트로 읽는다."""
+        try:
+            import os
+
+            # unstructured는 import할 때 사용 통계를 외부로 보낸다. 문서 작업 중에는 끈다.
+            os.environ.setdefault("DO_NOT_TRACK", "1")
+            os.environ.setdefault("UNSTRUCTURED_DISABLE_NOTICE", "1")
+            from unstructured.partition.pptx import partition_pptx
+
+            elements = partition_pptx(filename=path, include_slide_notes=True, include_page_breaks=True)
+            # 슬라이드 사이마다 PageBreak가 하나씩 나오므로 슬라이드 수는 PageBreak 수 + 1이다.
+            # 텍스트가 없는 슬라이드는 요소가 없어서, 이렇게 세어야 빈 슬라이드를 남길 수 있다.
+            slides: list[list[str]] = [[]]
+            for element in elements:
+                if type(element).__name__ == "PageBreak":
+                    slides.append([])
+                elif element.text and element.text.strip():
+                    slides[-1].append(element.text)
+            return [
+                make_doc("\n\n".join(parts), path, self.name, page=i)
+                for i, parts in enumerate(slides, start=1)
+            ]
+        except Exception as e:
+            raise LoadError(f"{self.name}: {type(e).__name__}: {e}") from e
