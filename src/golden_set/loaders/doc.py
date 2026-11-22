@@ -26,8 +26,8 @@ def rtf_to_text(data: bytes) -> str:
     out: list[str] = []
     pending = bytearray()  # \'hh로 온 코드페이지 바이트. 한글은 두 바이트라 모아서 푼다
     codepage = "cp1252"
-    stack: list[tuple[bool, int]] = []  # (건너뛰는 중인가, \uc 값)
-    skip, uc = False, 1
+    stack: list[tuple[bool, int, bool]] = []  # (건너뛰는 중인가, \uc 값, 각주 그룹인가)
+    skip, uc, footnote = False, 1, False
     to_skip = 0  # \u 뒤에 따라오는 대체 글자 수
     group_start = False
     star = False
@@ -48,12 +48,15 @@ def rtf_to_text(data: bytes) -> str:
         at_group_start, group_start = group_start, False
 
         if brace == b"{":
-            stack.append((skip, uc))
+            stack.append((skip, uc, footnote))
+            footnote = False
             group_start, star = True, False
         elif brace == b"}":
             flush()
+            if footnote and not skip:
+                out.append("\n")
             if stack:
-                skip, uc = stack.pop()
+                skip, uc, footnote = stack.pop()
         elif word is not None:
             name = word.decode("ascii")
             value = int(param) if param else None
@@ -61,6 +64,11 @@ def rtf_to_text(data: bytes) -> str:
                 pos += value or 0
             elif at_group_start and (name in _SKIP_DESTINATIONS or star):
                 skip = True
+            elif at_group_start and name == "footnote":  # 각주는 남기되 본문과 줄바꿈으로 나눈다
+                footnote = True
+                if not skip:
+                    flush()
+                    out.append("\n")
             elif name == "ansicpg" and value:
                 codepage = f"cp{value}"
             elif name == "uc" and value is not None:

@@ -284,3 +284,12 @@ def test_txt_broken_utf16_raises_load_error(tmp_path: Path) -> None:
     p.write_bytes(b"\xff\xfe" + "가나다".encode("utf-16-le") + b"\x00")  # 홀수 바이트
     with pytest.raises(LoadError):
         load_path(str(p))
+
+
+# ---- 검토 5: RTF 각주 ----
+
+
+def test_rtf_footnote_is_kept_but_separated_by_newlines() -> None:
+    text = rtf_to_text(rb"{\rtf1\ansi body{\footnote note text} end}")
+    assert text == "body\nnote text\n end"
+    assert "note text" in text.split("\n")
