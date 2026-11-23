@@ -196,7 +196,7 @@ def cmd_prepare(args: argparse.Namespace) -> int:
 
 def _llm_settings(args: argparse.Namespace, need_embed: bool):
     """LLM 옵션을 환경 변수와 합쳐 LLMSettings를 만든다. 접속 정보가 없으면 ConfigError."""
-    from golden_set.llm import settings_from_env
+    from golden_set.generation.llm.settings import settings_from_env
 
     return settings_from_env(
         need_embed=need_embed,
@@ -212,7 +212,8 @@ def _llm_settings(args: argparse.Namespace, need_embed: bool):
 
 def cmd_ping(args: argparse.Namespace) -> int:
     """LLM과 임베딩에 한 번씩 요청해 연결과 JSON 응답 여부를 확인한다."""
-    from golden_set.llm import EMBED_ENV, LLM_ENV, ConfigError, ping
+    from golden_set.generation.llm.ping import ping
+    from golden_set.generation.llm.settings import EMBED_ENV, LLM_ENV, ConfigError
 
     try:
         settings = _llm_settings(args, need_embed=False)
@@ -232,8 +233,8 @@ def cmd_ping(args: argparse.Namespace) -> int:
 def cmd_generate(args: argparse.Namespace) -> int:
     """chunks.jsonl로 생성기 하나를 돌려 candidates.jsonl을 만든다."""
     from golden_set.domain.store import read_chunks, write_candidates
-    from golden_set.generators import GenerateError, GenerateReport, get_generator
-    from golden_set.llm import EMBED_ENV, LLM_ENV, ConfigError
+    from golden_set.generation import GenerateError, GenerateReport, get_generator
+    from golden_set.generation.llm.settings import EMBED_ENV, LLM_ENV, ConfigError
 
     try:
         settings = _llm_settings(args, need_embed=args.generator == "ragas")

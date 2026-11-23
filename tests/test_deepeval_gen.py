@@ -8,17 +8,12 @@ from deepeval.dataset.golden import Golden
 from langchain_core.documents import Document
 
 from golden_set.domain.candidate import Source
-from golden_set.generators import GenerateReport, Generator
-from golden_set.generators.base import extract_json
-from golden_set.generators.deepeval_gen import (
-    STYLING,
-    ChatDeepEvalModel,
-    DeepEvalGenerator,
-    build_contexts,
-    candidates_from_deepeval,
-    choose_contexts,
-)
-from golden_set.llm import Endpoint, LLMError, LLMSettings
+from golden_set.generation import GenerateReport, Generator
+from golden_set.generation.deepeval.adapters import ChatDeepEvalModel
+from golden_set.generation.deepeval.contexts import build_contexts, choose_contexts
+from golden_set.generation.deepeval.generator import STYLING, DeepEvalGenerator, candidates_from_deepeval
+from golden_set.generation.llm import Endpoint, LLMError, LLMSettings
+from golden_set.generation.matching import extract_json
 
 KO = ["첫 장문인 청운은 황하 기슭의 폐사에서 문파를 열었다.", "둘째 장문인 백리는 검을 뽑지 않았다.", "셋째 장문인 운하는 십 년 동안 산문을 닫았다.", "넷째 장문인 소천은 문규를 고쳤다."]
 

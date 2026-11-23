@@ -1,72 +1,18 @@
-"""LLM과 임베딩 연결. 접속 정보는 환경 변수로만 받고, OpenAI 호환 API로 접속한다.
+"""LLM과 임베딩 클라이언트. OpenAI 호환 API로 접속한다.
 
 두 생성기(Ragas, DeepEval)는 이 모듈의 ChatClient를 통해서만 LLM을 부른다. 그래서 추론(<think>) 분리,
 요청·성공·실패 수 집계, 제한 시간이 한곳에서 처리된다.
 """
 
-import os
 import re
 import threading
 from dataclasses import dataclass, field
 
-LLM_ENV = ("GOLDEN_LLM_BASE_URL", "GOLDEN_LLM_MODEL", "GOLDEN_LLM_API_KEY")
-EMBED_ENV = ("GOLDEN_EMBED_BASE_URL", "GOLDEN_EMBED_MODEL", "GOLDEN_EMBED_API_KEY")
-DEFAULT_API_KEY = "EMPTY"  # vLLM, SGLang은 키를 검사하지 않는다. 비어 있으면 이 값을 보낸다
-
-
-class ConfigError(Exception):
-    """접속 정보가 없거나 모자랄 때."""
+from golden_set.generation.llm.settings import Endpoint, LLMSettings
 
 
 class LLMError(Exception):
     """요청이 실패했거나 응답이 비었을 때. 원인 메시지를 담는다."""
-
-
-@dataclass(frozen=True)
-class Endpoint:
-    """OpenAI 호환 서버 하나."""
-
-    base_url: str
-    model: str
-    api_key: str = DEFAULT_API_KEY
-
-
-@dataclass(frozen=True)
-class LLMSettings:
-    """연결 설정. 환경 변수 밖의 값(동시 요청 수 등)은 CLI 옵션으로 바꾼다."""
-
-    llm: Endpoint
-    embed: Endpoint | None = None
-    concurrency: int = 4  # 서버 한 대를 상대하므로 도구 기본값을 쓰지 않는다
-    timeout: float = 120.0  # 요청 하나의 제한 시간(초)
-    max_tokens: int = 4096
-    temperature: float = 0.2  # 호출자가 온도를 주지 않을 때
-    disable_thinking: bool = True  # Qwen3 계열: chat_template_kwargs.enable_thinking=false 를 보낸다
-    json_mode: bool = True  # JSON 응답을 기대하는 요청에 response_format=json_object 를 붙인다
-    reasoning_effort: str | None = None  # Ollama처럼 chat_template_kwargs를 무시하는 서버용. "none"이면 추론을 끈다
-
-
-def endpoint_from_env(names: tuple[str, str, str], env: dict[str, str] | None = None) -> Endpoint | None:
-    """세 환경 변수로 Endpoint를 만든다. 주소와 모델이 둘 다 없으면 None, 하나만 있으면 ConfigError."""
-    e = os.environ if env is None else env
-    base_url, model, key = (e.get(n, "").strip() for n in names)
-    if not base_url and not model:
-        return None
-    missing = [n for n, v in zip(names[:2], (base_url, model)) if not v]
-    if missing:
-        raise ConfigError(f"missing {', '.join(missing)}")
-    return Endpoint(base_url=base_url, model=model, api_key=key or DEFAULT_API_KEY)
-
-
-def settings_from_env(need_embed: bool = False, env: dict[str, str] | None = None, **overrides) -> LLMSettings:
-    """환경 변수에서 설정을 읽는다. LLM이 없으면 ConfigError, need_embed인데 임베딩이 없으면 ConfigError."""
-    llm = endpoint_from_env(LLM_ENV, env)
-    if llm is None:
-        raise ConfigError(f"missing {LLM_ENV[0]}, {LLM_ENV[1]}")
-    embed = endpoint_from_env(EMBED_ENV, env)
-    if need_embed and embed is None:
-        raise ConfigError(f"missing {EMBED_ENV[0]}, {EMBED_ENV[1]}")
-    return LLMSettings(llm=llm, embed=embed, **overrides)
 
 
 # ---- 응답 정리 ----
@@ -326,62 +272,3 @@ class EmbedClient:
             raise LLMError(f"{type(e).__name__}: {e}") from e
         self.log.ok([])
         return vectors
-
-
-# ---- ping ----
-
-PING_PROMPT = 'Reply with exactly this JSON object and nothing else: {"ok": true, "lang": "ko"}'
-
-
-@dataclass
-class PingResult:
-    """ping 결과. 리포트에 그대로 찍는다."""
-
-    llm_ok: bool
-    llm_json: bool
-    llm_detail: str
-    reasoning_separated: bool = False
-    think_in_content: bool = False
-    embed_ok: bool | None = None  # None이면 임베딩 설정이 없어 건너뛰었다
-    embed_detail: str = ""
-
-    @property
-    def ok(self) -> bool:
-        return self.llm_ok and self.llm_json and self.embed_ok is not False
-
-
-def ping(settings: LLMSettings, chat: ChatClient | None = None, embed: EmbedClient | None = None) -> PingResult:
-    """LLM과 임베딩에 한 번씩 요청해 연결과 JSON 응답 여부를 본다. 예외는 결과에 담고 내지 않는다."""
-    import json as _json
-    import time
-
-    chat = chat or ChatClient(settings.llm, settings)
-    start = time.perf_counter()
-    try:
-        (c,) = chat.complete([("user", PING_PROMPT)], json=True, temperature=0.0)
-    except LLMError as e:
-        result = PingResult(False, False, f"error: {e}")
-    else:
-        try:
-            parsed = _json.loads(c.text)
-            is_json = isinstance(parsed, dict)
-        except ValueError:
-            is_json = False
-        result = PingResult(
-            True,
-            is_json,
-            f"{time.perf_counter() - start:.2f}s  model={settings.llm.model}  finish={c.finish_reason}  content={c.text[:120]!r}",
-            reasoning_separated=c.reasoning_separated,
-            think_in_content=c.think_stripped,
-        )
-    if settings.embed is None:
-        return result
-    embed = embed or EmbedClient(settings.embed, settings)
-    start = time.perf_counter()
-    try:
-        (vec,) = embed.embed(["연결 확인 connection check"])
-    except LLMError as e:
-        result.embed_ok, result.embed_detail = False, f"error: {e}"
-    else:
-        result.embed_ok, result.embed_detail = True, f"{time.perf_counter() - start:.2f}s  model={settings.embed.model}  dim={len(vec)}"
-    return result

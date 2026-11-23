@@ -175,7 +175,7 @@ def embedding_response(*vectors) -> SimpleNamespace:
 
 def fake_chat(*texts, **settings):
     """정해진 본문을 차례로 돌려주는 ChatClient. 동기·비동기 요청 모두 같은 큐를 쓴다."""
-    from golden_set.llm import ChatClient, Endpoint, LLMSettings
+    from golden_set.generation.llm import ChatClient, Endpoint, LLMSettings
 
     responses = [t if isinstance(t, Exception) or callable(t) else completion(choice(t)) for t in texts]
     fake = FakeOpenAI(*responses)
@@ -184,7 +184,7 @@ def fake_chat(*texts, **settings):
 
 
 def fake_embed(dim: int = 4):
-    from golden_set.llm import EmbedClient, Endpoint
+    from golden_set.generation.llm import EmbedClient, Endpoint
 
     class AnyEmbed(FakeOpenAI):
         def _next(self, kwargs):

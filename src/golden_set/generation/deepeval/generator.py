@@ -1,27 +1,20 @@
-"""DeepEval 생성기. Synthesizer.generate_goldens_from_contexts에 우리 청크로 만든 context를 넘긴다.
-
-확인한 버전: deepeval 4.3.4 (NOTES.md 참고). 파일을 도구가 직접 읽는 generate_goldens_from_docs는 쓰지 않는다.
-이 모듈은 deepeval이 설치되어 있을 때만 import된다.
-"""
+"""DeepEval 생성기. Synthesizer.generate_goldens_from_contexts에 우리 청크로 만든 context를 넘긴다."""
 
 import asyncio
-import math
-import os
 from dataclasses import dataclass, field
 
-# 사용 통계(PostHog)와 .deepeval/ 폴더 생성, .env 자동 읽기를 끈다. import 전에 있어야 한다.
-os.environ.setdefault("DEEPEVAL_TELEMETRY_OPT_OUT", "YES")
-os.environ.setdefault("DEEPEVAL_DISABLE_DOTENV", "1")
-
 from deepeval.dataset.golden import Golden
-from deepeval.models import DeepEvalBaseLLM
 from deepeval.synthesizer.config import EvolutionConfig, FiltrationConfig, StylingConfig
 from langchain_core.documents import Document
 
 from golden_set.domain.candidate import GoldenCandidate, make_id
 from golden_set.domain.language import detect_language
-from golden_set.generators.base import ChunkIndex, GenerateError, GenerateReport, extract_json, sources_for
-from golden_set.llm import ChatClient, LLMError, LLMSettings
+from golden_set.generation.deepeval.adapters import ChatDeepEvalModel
+from golden_set.generation.deepeval.contexts import ContextGroup, build_contexts, choose_contexts
+from golden_set.generation.generator import GenerateError, GenerateReport
+from golden_set.generation.llm.client import ChatClient
+from golden_set.generation.llm.settings import LLMSettings
+from golden_set.generation.matching import ChunkIndex, sources_for
 
 # StylingConfig로 질문·정답 언어를 근거 본문과 맞춘다. 템플릿 자체는 언어를 지정하지 않는다 (deepeval 4.3.4).
 STYLING = {
@@ -34,118 +27,6 @@ STYLING = {
         expected_output_format="A complete answer written in English using only information from the context.",
     ),
 }
-MAX_GOLDENS_PER_CONTEXT = 5  # context가 모자랄 때 context 하나에서 뽑는 상한
-
-
-class ChatDeepEvalModel(DeepEvalBaseLLM):
-    """DeepEvalBaseLLM을 ChatClient로 구현한다.
-
-    schema가 오면 JSON 모드로 요청해 그 pydantic 모델 인스턴스를 돌려준다. 파싱이 안 되면 LLMError를 낸다
-    (TypeError가 아니어야 한다: deepeval은 TypeError를 "schema를 못 받는 모델"로 해석해 다른 경로로 간다).
-    """
-
-    def __init__(self, client: ChatClient, report: GenerateReport | None = None):
-        self.client = client
-        self.report = report
-        self.parse_failures: list[str] = []
-        super().__init__(model=client.model)
-
-    def load_model(self, *args, **kwargs):
-        return self.client
-
-    def get_model_name(self, *args, **kwargs) -> str:
-        return self.client.model
-
-    @staticmethod
-    def text_field(schema) -> str | None:
-        """문자열 필드 하나뿐인 스키마(예: Response.response)면 그 필드 이름. deepeval은 이런 스키마로 자유 텍스트를 받는다."""
-        fields = getattr(schema, "model_fields", {})
-        if len(fields) == 1:
-            (name, info), = fields.items()
-            if info.annotation is str:
-                return name
-        return None
-
-    def _to_schema(self, text: str, schema):
-        field = self.text_field(schema)
-        try:
-            return schema.model_validate(extract_json(text))
-        except Exception as e:  # ValueError(JSON 없음)나 pydantic ValidationError
-            if field is not None:  # 프롬프트가 자유 텍스트를 요구한 경우다. 본문을 그대로 담는다
-                return schema(**{field: text})
-            reason = f"{schema.__name__}: {type(e).__name__}: {str(e).splitlines()[0][:120]}"
-            self.parse_failures.append(reason)
-            self.client.log.fail(f"json parse ({reason})")
-            raise LLMError(f"response did not match {reason}") from e
-
-    def _json_mode(self, schema) -> bool:
-        """JSON 키를 지정한 프롬프트에만 JSON 모드를 쓴다. 자유 텍스트 스키마(Response)는 서버가 JSON을 강제하면 안 된다."""
-        return schema is not None and self.text_field(schema) is None
-
-    def generate(self, prompt: str, schema=None, **kwargs):
-        (c,) = self.client.complete([("user", prompt)], json=self._json_mode(schema))
-        return c.text if schema is None else self._to_schema(c.text, schema)
-
-    async def a_generate(self, prompt: str, schema=None, **kwargs):
-        (c,) = await self.client.acomplete([("user", prompt)], json=self._json_mode(schema))
-        return c.text if schema is None else self._to_schema(c.text, schema)
-
-
-# ---- context 구성 ----
-
-
-@dataclass
-class ContextGroup:
-    """같은 파일의 이웃한 청크 1~3개."""
-
-    chunks: list[Document]
-
-    @property
-    def texts(self) -> list[str]:
-        return [c.page_content for c in self.chunks]
-
-    @property
-    def source(self) -> str:
-        return str(self.chunks[0].metadata.get("source", ""))
-
-
-def build_contexts(chunks: list[Document], per_context: int = 3) -> list[ContextGroup]:
-    """파일별로 청크를 순서대로 per_context개씩 묶는다. 마지막 묶음은 더 짧을 수 있다."""
-    if not 1 <= per_context <= 3:
-        raise ValueError("per_context must be 1..3")
-    by_source: dict[str, list[Document]] = {}
-    for c in chunks:
-        if c.page_content.strip():
-            by_source.setdefault(str(c.metadata.get("source", "")), []).append(c)
-    groups: list[ContextGroup] = []
-    for docs in by_source.values():
-        for i in range(0, len(docs), per_context):
-            groups.append(ContextGroup(docs[i : i + per_context]))
-    return groups
-
-
-def choose_contexts(groups: list[ContextGroup], size: int, max_goldens_per_context: int = 2) -> tuple[list[ContextGroup], int]:
-    """size개를 만들기 위해 쓸 context와 context당 후보 수를 정한다. 파일을 돌아가며 고른다.
-
-    context가 모자라면 context당 후보 수를 올린다 (상한 MAX_GOLDENS_PER_CONTEXT).
-    """
-    if not groups:
-        return [], max_goldens_per_context
-    per_context = max_goldens_per_context
-    needed = math.ceil(size / per_context)
-    if needed > len(groups):
-        per_context = min(MAX_GOLDENS_PER_CONTEXT, math.ceil(size / len(groups)))
-        needed = len(groups)
-    by_source: dict[str, list[ContextGroup]] = {}
-    for g in groups:
-        by_source.setdefault(g.source, []).append(g)
-    chosen: list[ContextGroup] = []
-    queues = list(by_source.values())
-    while len(chosen) < needed and any(queues):
-        for q in queues:
-            if q and len(chosen) < needed:
-                chosen.append(q.pop(0))
-    return chosen, per_context
 
 
 # ---- 결과 변환 ----

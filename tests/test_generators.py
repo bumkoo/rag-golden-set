@@ -5,9 +5,9 @@ from langchain_core.documents import Document
 
 from golden_set.domain.candidate import Source
 from golden_set.domain.language import detect_language
-from golden_set.generators import GenerateError, GenerateReport, Generator, get_generator
-from golden_set.generators.base import ChunkIndex, sources_for
-from golden_set.llm import Endpoint, LLMSettings
+from golden_set.generation import GenerateError, GenerateReport, Generator, get_generator
+from golden_set.generation.llm import Endpoint, LLMSettings
+from golden_set.generation.matching import ChunkIndex, sources_for
 
 
 def chunk(text: str, cid: str, source: str = "a.pdf", page: int | None = 1) -> Document:
@@ -67,7 +67,7 @@ def test_get_generator_unknown_and_ragas_needs_embedding() -> None:
 
 
 def test_generators_satisfy_protocol() -> None:
-    from golden_set.generators.ragas_gen import RagasGenerator
+    from golden_set.generation.ragas.generator import RagasGenerator
 
     settings = LLMSettings(llm=Endpoint("http://llm.test/v1", "qwen"), embed=Endpoint("http://emb.test/v1", "bge"))
     g = get_generator("ragas", settings)

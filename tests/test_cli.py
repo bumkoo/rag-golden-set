@@ -191,7 +191,7 @@ class FakeGenerator:
     name = "fake"
 
     def __init__(self, settings, report=None, **options):
-        from golden_set.generators import GenerateReport
+        from golden_set.generation import GenerateReport
 
         self.settings, self.options, self.report = settings, options, report or GenerateReport("fake")
 
@@ -214,7 +214,7 @@ def _env(monkeypatch) -> None:
 
 
 def test_generate_writes_candidates_and_report(tmp_path: Path, capsys, monkeypatch) -> None:
-    import golden_set.generators as base  # cli는 패키지에서 get_generator를 가져온다
+    import golden_set.generation as base  # cli는 패키지에서 get_generator를 가져온다
     from golden_set.domain.store import read_candidates
 
     _env(monkeypatch)

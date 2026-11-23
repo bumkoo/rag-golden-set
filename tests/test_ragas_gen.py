@@ -12,19 +12,12 @@ from ragas.testset.persona import Persona
 from ragas.testset.synthesizers.testset_schema import TestsetSample as RagasTestsetSample  # 이름에 Test가 있어 pytest가 수집하려 든다
 
 from golden_set.domain.candidate import Source
-from golden_set.generators import GenerateReport
-from golden_set.generators.ragas_gen import (
-    FAILED_SAMPLE_STYLE,
-    ChatRagasEmbedding,
-    ChatRagasLLM,
-    GuardedSynthesizer,
-    GuardedTransform,
-    RagasGenerator,
-    build_transforms,
-    candidates_from_ragas,
-    strip_hop_prefix,
-)
-from golden_set.llm import Endpoint, LLMSettings
+from golden_set.generation import GenerateReport
+from golden_set.generation.llm import Endpoint, LLMSettings
+from golden_set.generation.ragas.adapters import ChatRagasEmbedding, ChatRagasLLM
+from golden_set.generation.ragas.generator import RagasGenerator, candidates_from_ragas, strip_hop_prefix
+from golden_set.generation.ragas.guards import FAILED_SAMPLE_STYLE, GuardedSynthesizer, GuardedTransform
+from golden_set.generation.ragas.transforms import build_transforms
 
 KO = "강호의 규율은 무공이 아니라 신의에서 나온다고 장문인은 말했다. 제자는 그 뜻을 오래도록 헤아리지 못했다."
 EN = "The master never drew the sword, and the pupil did not understand why for many years."
@@ -132,7 +125,7 @@ def test_broken_json_is_retried_by_ragas_then_raised_not_hung() -> None:
 
 
 def test_empty_response_is_retried_then_raised() -> None:
-    from golden_set.llm import LLMError
+    from golden_set.generation.llm import LLMError
 
     llm, chat, _ = ragas_llm("<think>추론만")
     with pytest.raises(LLMError):
@@ -230,7 +223,7 @@ def test_generate_continues_past_failed_samples_and_reports_them() -> None:
 
 
 def test_generator_options_and_language_instruction() -> None:
-    from golden_set.generators.ragas_gen import LANGUAGE_INSTRUCTION, RagasOptions
+    from golden_set.generation.ragas.generator import LANGUAGE_INSTRUCTION, RagasOptions
 
     settings = LLMSettings(llm=Endpoint("http://llm.test/v1", "qwen"), embed=Endpoint("http://emb.test/v1", "bge"), concurrency=3, timeout=30)
     g = RagasGenerator(settings, language="ko", adapt_prompts=False)

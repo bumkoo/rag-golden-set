@@ -5,7 +5,7 @@ import asyncio
 import pytest
 from conftest import FakeOpenAI, choice, completion, embedding_response, fake_chat, fake_embed
 
-from golden_set.llm import (
+from golden_set.generation.llm import (
     EMBED_ENV,
     LLM_ENV,
     CallLog,
@@ -15,10 +15,10 @@ from golden_set.llm import (
     Endpoint,
     LLMError,
     LLMSettings,
-    ping,
     settings_from_env,
     strip_think,
 )
+from golden_set.generation.llm.ping import ping
 
 ENV = {
     "GOLDEN_LLM_BASE_URL": "http://llm.test/v1",
