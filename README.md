@@ -9,11 +9,14 @@ Ragas와 DeepEval로 질문-정답 **골든 후보**를 만들어 같은 형식�
 문서 폴더 ──prepare───▶ chunks.jsonl (머리글·바닥글 제거, 청킹)
 chunks.jsonl ──generate --generator ragas|deepeval──▶ candidates.jsonl
 candidates.jsonl ──check──▶ 후보별 합격 여부, 생성기별 비교 요약
+candidates.jsonl ──export──▶ golden.awx1.json (바깥 시스템의 데이터셋 형식)
 ```
+
+명령을 순서대로 쓰는 방법은 [docs/CLI_GUIDE.md](docs/CLI_GUIDE.md)에 있다.
 
 ## 구조
 
-코드는 네 개의 컨텍스트와 공통 도메인 모델로 나뉜다. 컨텍스트끼리는 서로를 import하지 않고 `domain`의 타입과 두 JSONL 파일로만 주고받는다.
+코드는 다섯 개의 컨텍스트와 공통 도메인 모델로 나뉜다. 컨텍스트끼리는 서로를 import하지 않고 `domain`의 타입과 두 JSONL 파일로만 주고받는다.
 
 ```text
 src/golden_set/
@@ -22,7 +25,8 @@ src/golden_set/
 ├── chunking/      ② 문서 → 청크        cleaning.py, chunker.py
 ├── generation/    ③ 청크 → 골든 후보   generator.py, matching.py, progress.py, llm/, ragas/, deepeval/
 ├── evaluation/    ④ 후보 → 판정        checks.py, summary.py, output.py
-└── cli/           명령행               main.py, llm_options.py, commands/
+├── exporting/     ⑤ 후보 → 바깥 형식   awx.py (형식 하나에 어댑터 하나)
+└── cli/           명령행               main.py, llm_options.py, project.py, commands/
 ```
 
 | 패키지 | import해도 되는 것 |
@@ -32,11 +36,12 @@ src/golden_set/
 | `chunking` | `domain`, langchain_core (로더가 낸 `Document`를 받는다) |
 | `generation` | `domain`, openai(`llm/` 안에서만), ragas(`ragas/` 안에서만), deepeval(`deepeval/` 안에서만) |
 | `evaluation` | `domain` |
+| `exporting` | `domain` |
 | `cli` | 전부 |
 
 이 표는 `tests/test_architecture.py`가 지킨다. `src/golden_set/` 아래 모든 import 문을 읽어 위반한 줄을 파일과 줄 번호로 보고한다.
 무거운 패키지(openai, ragas, deepeval)는 필요할 때만 import하므로 `validate`, `prepare`, `check`는 `generate` extra 없이 돈다.
-옛 경로와 새 경로의 대응표는 [NOTES.md](NOTES.md) 9장에 있다.
+설계 근거와 옛 경로 대응표는 [NOTES.md](NOTES.md) 7장에 있다.
 
 ## 설치
 
@@ -60,13 +65,7 @@ docs = load_path("문서.pdf", "pdfplumber")   # 이름으로 로더 지정
 docs, failures = load_dir("문서폴더")         # 하위 폴더까지, 실패는 Failure(path, reason)로 수집
 ```
 
-```bash
-python -m golden_set.cli validate <폴더> [--out report.csv] [--samples N]
-python -m golden_set.cli compare <파일> [--samples N]
-```
-
-종료 코드: 불합격(`fail`)이나 읽기 실패(`error`)가 하나라도 있으면 1, 폴더나 파일이 없으면 2, 그 외 0.
-지원하지 않는 확장자(`unsupported`)는 표에 보고만 하고 종료 코드에는 넣지 않는다.
+`validate`와 `compare` 명령은 [docs/CLI_GUIDE.md](docs/CLI_GUIDE.md)를 본다.
 
 ## 사용: 골든 후보 생성
 
@@ -74,7 +73,7 @@ python -m golden_set.cli compare <파일> [--samples N]
 
 | 변수 | 내용 |
 |---|---|
-| `GOLDEN_LLM_BASE_URL` | 생성용 LLM(Qwen3.6)의 OpenAI 호환 주소, 예: `http://서버:8000/v1` |
+| `GOLDEN_LLM_BASE_URL` | 생성용 LLM의 OpenAI 호환 주소, 예: `http://서버:8000/v1` |
 | `GOLDEN_LLM_MODEL` | 서버에 올린 모델 이름 |
 | `GOLDEN_LLM_API_KEY` | 키. vLLM, SGLang처럼 검사하지 않는 서버면 생략 가능 |
 | `GOLDEN_EMBED_BASE_URL` | 임베딩 서버의 OpenAI 호환 주소 (Ragas에 필요, DeepEval은 쓰지 않음) |
@@ -85,61 +84,59 @@ python -m golden_set.cli compare <파일> [--samples N]
 
 ### 2. 명령 순서
 
-서버에 닿는 PC에서 아래 순서대로 실행한다. `<문서 폴더>`와 `<작업 폴더>`는 저장소 밖에 둔다 (실제 문서와 산출물은 저장소에 넣지 않는다).
+```text
+validate → prepare → ping → generate → check → export
+```
 
-```bash
-python -m golden_set.cli ping
+모든 명령에 `--project <폴더>`를 주면 산출물이 단계별 하위 폴더에 놓이고, 다음 명령이 앞 단계의 파일을 알아서 찾는다.
+
+```text
+<프로젝트>/
+├── 1-validate/   validate.csv
+├── 2-prepare/    chunks.jsonl
+├── 3-generate/   ragas.candidates.jsonl, ragas.log, deepeval.candidates.jsonl, deepeval.log
+├── 4-check/      check.csv, reviewed.candidates.jsonl (사람이 검수해서 남긴 후보, 선택)
+└── 5-export/     golden.awx1.json
 ```
 
 ```bash
-python -m golden_set.cli prepare <문서 폴더> --out <작업 폴더>/chunks.jsonl
+python -m golden_set.cli prepare  <문서 폴더> --project <프로젝트>
+python -m golden_set.cli generate --project <프로젝트> --generator ragas
+python -m golden_set.cli check    --project <프로젝트>
+python -m golden_set.cli export   --project <프로젝트> --format awx1
 ```
 
-```bash
-python -m golden_set.cli generate <작업 폴더>/chunks.jsonl --generator ragas --size 30 --out <작업 폴더>/ragas.candidates.jsonl
-```
-
-```bash
-python -m golden_set.cli generate <작업 폴더>/chunks.jsonl --generator deepeval --size 30 --out <작업 폴더>/deepeval.candidates.jsonl
-```
-
-```bash
-cat <작업 폴더>/ragas.candidates.jsonl <작업 폴더>/deepeval.candidates.jsonl > <작업 폴더>/candidates.jsonl
-```
-
-```bash
-python -m golden_set.cli check <작업 폴더>/candidates.jsonl --chunks <작업 폴더>/chunks.jsonl --out <작업 폴더>/check.csv
-```
-
-픽스처 문서로 먼저 확인하려면 `python tests/make_fixtures.py`로 `tests/fixtures/`를 만들고 `<문서 폴더>` 자리에 넣는다.
-실제 서버 호출 테스트는 다음과 같이 돈다 (환경 변수가 없으면 건너뛴다):
-
-```bash
-pytest tests/test_real_calls.py -v -s
-```
+순서대로 쓰는 방법, 폴더 하나를 끝까지 돌리는 스크립트, 파일마다 따로 돌리는 방법, 종료 코드와 자주 겪는 문제는
+**[docs/CLI_GUIDE.md](docs/CLI_GUIDE.md)**에 있다. 실제 문서와 산출물은 커밋하지 않는다 (저장소 안의 `data/`, `data-out/`은 .gitignore에 있다).
 
 ### 3. 명령별 설명
 
-**`ping`** — LLM과 임베딩에 한 번씩 요청해 연결, JSON 응답 여부, 추론 분리 여부(`reasoning_content` 필드가 따로 오는지, 본문에 `<think>`가 섞이는지)를 출력한다. 둘 다 정상이면 0.
+아래는 경로를 직접 주는 꼴이다. `--project`를 주면 입력 파일과 `--out`을 생략한다 (직접 준 경로가 우선한다). 종료 코드는 안내 문서의 표에 모아 두었다.
+
+**`ping`** — LLM과 임베딩에 한 번씩 요청해 연결, JSON 응답 여부, 추론 분리 여부(`reasoning_content` 필드가 따로 오는지, 본문에 `<think>`가 섞이는지)를 출력한다.
 
 **`prepare <폴더> --out chunks.jsonl`** — 로더로 읽고, 쪽 단위 파일(pdf, pptx)에서 전체 쪽의 60% 이상에 반복되는 첫 줄·끝 줄을 지운 뒤(쪽 번호처럼 숫자만 다른 줄은 같은 줄로 본다), 1,200자/겹침 150자 기본값으로 문단·문장 경계에서 자른다. 공백을 뺀 글자가 100자 미만인 청크는 버린다. 지운 문구와 횟수, 파일별 청크 수를 출력한다.
-옵션: `--chunk-size`, `--overlap`, `--min-chars`, `--header-ratio`. 읽기 실패한 파일이 있으면 1, 청크가 하나도 없으면 2.
+옵션: `--chunk-size`, `--overlap`, `--min-chars`, `--header-ratio`.
 
 **`generate chunks.jsonl --generator ragas|deepeval --size N --out candidates.jsonl`** — 생성기 하나를 돌린다 (`--size` 기본 30).
 - `ragas`: 청크를 그대로 지식 그래프의 노드로 넣고 `TestsetGenerator`로 만든다. 임베딩 서버가 필요하다. 근거 본문을 chunks.jsonl과 대조해 출처를 채운다.
 - `deepeval`: 같은 파일의 이웃한 청크 1~3개(`--context-chunks`, 기본 3)를 context 하나로 묶어 `generate_goldens_from_contexts`로 만든다. 출처는 정확히 채운다.
 - `--language auto|ko|en`: 질문 언어. `auto`는 청크의 한글 비율로 정한다. 두 도구 모두 프롬프트에 언어 지시를 넣는다.
 - LLM 옵션: `--concurrency`(기본 4), `--timeout`(120초), `--max-tokens`(4096), `--temperature`(0.2), `--keep-thinking`(추론 끄기 옵션을 보내지 않음), `--reasoning-effort LEVEL`(`reasoning_effort` 값을 보냄), `--no-json-mode`(`response_format=json_object`를 붙이지 않음).
-- Ollama는 추론 끄기 옵션(`chat_template_kwargs.enable_thinking=false`)을 무시한다. `--reasoning-effort none`을 줘야 추론이 꺼진다 (qwen3.5:9b에서 요청 하나가 41.6초 → 2.2초).
+- Ollama는 `--reasoning-effort none`을 줘야 추론이 꺼진다 (없으면 요청마다 수십 초).
 - 도는 동안 지금 어느 단계인지와 진행을 보여 주고, 단계가 끝날 때마다 한 줄 요약을 찍는다 (아래 "출력 예시: generate").
-- `--log-file <경로>`: 단계 요약과 마지막 리포트를 그 파일에도 쓴다. 진행 줄, 본문 내용, 서버 주소, 키는 쓰지 않는다.
-- 끝에 요청 수, 성공 수, 실패 수와 사유, 건너뛴 항목을 출력한다. 응답을 파싱하지 못한 항목은 멈추지 않고 건너뛴다. 후보가 0개면 1, 접속 정보나 입력 파일이 없으면 2.
+- `--log-file <경로>`: 단계 요약과 마지막 리포트를 그 파일에도 쓴다. 진행 줄, 본문 내용, 서버 주소, 키는 쓰지 않는다. `--project`를 주면 `3-generate/<생성기>.log`에 자동으로 남는다.
+- 끝에 요청 수, 성공 수, 실패 수와 사유, 건너뛴 항목을 출력한다. 응답을 파싱하지 못한 항목은 멈추지 않고 건너뛴다.
 
 **`check candidates.jsonl [--chunks chunks.jsonl] [--out report.csv]`** — LLM 없이 후보마다 합격 여부를 낸다. 항목: 필수 필드, 출처(chunk_id가 chunks.jsonl에 있는지), 질문 길이(공백 제외 10~300자), 언어 일치, 중복, 추론 찌꺼기(`<think>`, 코드 울타리, JSON 조각), 지시어 질문("위 글", "the passage" 등). 기준값은 `evaluation.checks.CheckThresholds`에 모여 있다.
 끝에 생성기별 요약(후보 수, 합격률, 불합격 사유별 건수, 질문 유형 분포, 언어 분포, 파일별 후보 수)을 나란히 낸다. 이 표가 두 도구를 같은 잣대로 비교하는 표다.
-`--chunks`를 생략하면 후보 파일 옆, 그다음 현재 폴더의 `chunks.jsonl`을 쓴다. 합격이 하나도 없으면 1.
+`--chunks`를 생략하면 후보 파일 옆, 그다음 현재 폴더의 `chunks.jsonl`을 쓴다.
 
 정답이 근거 본문과 실제로 맞는지는 `check`로 알 수 없다. 다음 단계인 사람 검수에서 본다.
+
+**`export candidates.jsonl --format awx1 --out golden.awx1.json`** — 후보를 바깥 시스템의 데이터셋 형식으로 바꾼다.
+- `awx1`: AgenticWorks 평가 데이터셋용 JSON 배열. 항목은 `{"id", "query", "expected_response"}` 세 키뿐이다. `id`는 1부터 매기는 정수이고 순서는 candidates.jsonl 그대로다 (n번째 항목이 n번째 후보). 출처와 근거 본문은 이 형식에 자리가 없어 빠진다.
+- 후보를 거르지 않고 전부 내보낸다. `--project`에서는 검수본(`4-check/reviewed.candidates.jsonl`)이 있으면 그것만, 없으면 `3-generate/`의 후보 전부를 내보낸다.
 
 ### 4. 출력 형식
 
@@ -165,15 +162,16 @@ pytest
 
 LLM 서버 없이 전부 돈다 (실제 문서 테스트와 실제 호출 테스트는 환경 변수가 없으면 건너뛴다). 생성 단계는 실제 ragas·deepeval에 가짜 LLM(`tests/ragas_fake.py`)을 물려 끝까지 돌린다. 픽스처 파일은 테스트가 직접 만든다. 같은 파일을 디스크에 깔아 보려면 `python tests/make_fixtures.py`를 실행한다 (`tests/fixtures/`, git에는 넣지 않는다).
 
-실제 문서로 로더를 검증하려면 문서 폴더를 환경 변수로 준다. 검사 항목은 [NOTES.md](NOTES.md) 6장에 있다.
+실제 문서와 실제 서버로 하는 테스트는 환경 변수를 줄 때만 돈다. 로더 검사 항목은 [NOTES.md](NOTES.md) 2장에 있다.
 
 ```bash
-GOLDEN_SET_REAL_DOCS=<문서 폴더> pytest tests/test_real_docs.py -v
+GOLDEN_SET_REAL_DOCS=<문서 폴더> pytest tests/test_real_docs.py -v    # 로더 검증
+pytest tests/test_real_calls.py -v -s                                  # 실제 서버 호출 (GOLDEN_LLM_* 필요)
 ```
 
 ## 출력 예시: generate
 
-ragas는 여섯 단계, deepeval은 두 단계로 돈다. 단계가 끝날 때마다 한 줄 요약이 남고, 마지막 리포트는 그 아래에 이전과 같은 꼴로 찍힌다.
+ragas는 여섯 단계, deepeval은 두 단계로 돈다. 단계가 끝날 때마다 한 줄 요약이 남고, 마지막 리포트는 그 아래에 찍힌다.
 
 ```text
 [1/6] 요약                  40/40  0초  LLM 40회  실패 0
@@ -200,58 +198,11 @@ embed  requests=40  ok=40  failed=0 (-)  think_stripped=0  reasoning_separated=0
 
 - 단계별 LLM 요청 수를 더하면 마지막 리포트의 `requests`와 같다.
 - 터미널에서는 진행 줄 하나를 제자리에서 다시 그린다. 출력을 파일로 돌리면 10%마다 한 줄씩만 찍는다.
-- 위는 가짜 LLM으로 돌린 것이다 (`python tests/make_stage_report.py`). 진행 줄과 로그 파일까지 포함한 전체는 [reports/generate_stages.txt](reports/generate_stages.txt).
+- 위는 가짜 LLM으로 돌린 것이다 (`python tests/make_stage_report.py`). 진행 줄과 로그 파일까지 포함한 전체는 [tests/examples/generate_stages.txt](tests/examples/generate_stages.txt).
 
-## 출력 예시: prepare
+## 그 밖의 출력 예시
 
-`python tests/make_fixtures.py && python -m golden_set.cli prepare tests/fixtures --out chunks.jsonl` (broken.pdf 때문에 종료 코드 1)
+픽스처 문서로 돌린 전체 출력이 [tests/examples/](tests/examples/)에 있다: `validate.txt`, `compare.txt`, `prepare.txt`, `generate_stages.txt`.
+픽스처는 `python tests/make_fixtures.py`로 `tests/fixtures/`에 만든다.
 
-```text
-skip  tests/fixtures/broken.pdf  (pymupdf: EmptyFileError: Cannot open empty file: filename='tests/fixtures/broken.pdf'.)
-skip  tests/fixtures/old.doc  (unsupported)
-skip  tests/fixtures/sheet.xlsx  (unsupported)
-
-removed from tests/fixtures/three_pages.pdf (3 pages):
-  [tail] x2  'text for extraction.'  (pattern 'text for extraction.')
-
-removed from tests/fixtures/with_header.pdf (5 pages):
-  [head] x5  '문파 연대기  국가법령정보센터'  (pattern '문파 연대기 국가법령정보센터')
-  [tail] x5  '- 1 -'  (pattern '- # -')
-
-chunks  source
-     0  tests/fixtures/ko_cp949.txt
-     0  tests/fixtures/ko_utf8.txt
-     0  tests/fixtures/sub/two_slides.pptx
-     0  tests/fixtures/sub/with_blank.pdf
-     0  tests/fixtures/three_pages.pdf
-     0  tests/fixtures/two_paragraphs.docx
-     5  tests/fixtures/with_header.pdf
-
-docs=17  chunks=5  chars min/avg/max=242/258/277  errors=1
-saved: chunks.jsonl
-```
-
-`three_pages.pdf`의 `text for extraction.`은 본문이 줄바꿈된 끝 줄이 3쪽 중 2쪽에서 우연히 같아 지워진 것이다. 이렇게 지워진 줄은 모두 출력되므로 사람이 확인할 수 있다. 짧은 픽스처는 100자 미만이라 청크가 0개다. 전체 출력은 [reports/prepare.txt](reports/prepare.txt).
-
-## 출력 예시: validate
-
-`python -m golden_set.cli validate tests/fixtures` (종료 코드 1)
-
-```text
-loader       status       doc_count  empty_ratio  avg_chars  broken_ratio  hangul_ratio  meta_ok  elapsed_sec  path  (reasons)
-pymupdf      error                                                                                             tests/fixtures/broken.pdf  (pymupdf: EmptyFileError: Cannot open empty file: filename='tests/fixtures/broken.pdf'.)
-stdlib       pass         1          0.000        96.0       0.0000        0.526         True     0.000        tests/fixtures/ko_cp949.txt
-stdlib       pass         1          0.000        96.0       0.0000        0.526         True     0.000        tests/fixtures/ko_utf8.txt
--            unsupported                                                                                       tests/fixtures/old.doc  (unsupported)
--            unsupported                                                                                       tests/fixtures/sheet.xlsx  (unsupported)
-python-pptx  pass         2          0.000        93.5       0.0000        0.630         True     0.078        tests/fixtures/sub/two_slides.pptx
-pymupdf      fail         4          0.500        33.8       0.0000        0.396         True     0.005        tests/fixtures/sub/with_blank.pdf  (empty_ratio 50.0% > 30.0%; avg_chars 33.8 < 50)
-pymupdf      pass         3          0.000        67.7       0.0000        0.406         True     0.001        tests/fixtures/three_pages.pdf
-docx2txt     pass         1          0.000        73.0       0.0000        0.373         True     0.002        tests/fixtures/two_paragraphs.docx
-pymupdf      pass         5          0.000        282.4      0.0000        0.449         True     0.002        tests/fixtures/with_header.pdf
-
-pass=6  fail=1  error=1  unsupported=2
-```
-
-`--samples`와 CSV까지 포함한 전체 출력은 [reports/validate.txt](reports/validate.txt), 로더 비교는 [reports/compare.txt](reports/compare.txt),
-pytest 실행 결과 전문은 [reports/pytest.txt](reports/pytest.txt)에 있다. 계획과 달라진 점, 확인한 도구 버전, 남은 문제는 [NOTES.md](NOTES.md)를 본다.
+도구를 고른 근거, 요구사항을 읽은 방식, 확인한 한계와 남은 문제는 [NOTES.md](NOTES.md)를 본다.
