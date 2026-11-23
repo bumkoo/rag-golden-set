@@ -6,7 +6,8 @@ import sys
 from pathlib import Path
 
 from conftest import KO_TEXT, PDF_PAGES, build_fixture_dir, make_pdf
-from golden_set.cli import CSV_COLUMNS, main
+from golden_set.cli import main
+from golden_set.cli.commands.validate import CSV_COLUMNS
 
 
 def test_validate_exit_1_when_any_file_fails(tmp_path: Path, capsys) -> None:
