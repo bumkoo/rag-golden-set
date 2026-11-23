@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 
 from conftest import KO_TEXT
-from golden_set.loaders import LoadError, Loader, TxtLoader
-from golden_set.registry import load_path
+from golden_set.loading.loaders import LoadError, Loader, TxtLoader
+from golden_set.loading.registry import load_path
 
 
 def assert_common_meta(doc, path: Path, file_type: str, loader: str) -> None:
@@ -47,7 +47,7 @@ def test_txt_loader_satisfies_protocol() -> None:
 # ---- 2단계: docx, pdf, pptx 기본 로더 ----
 
 from conftest import DOCX_PARAGRAPHS, NOTE, PDF_PAGES, SLIDES, make_pptx
-from golden_set.loaders import Docx2txtLoader, PyMuPDFLoader, PythonPptxLoader
+from golden_set.loading.loaders import Docx2txtLoader, PyMuPDFLoader, PythonPptxLoader
 
 
 def squash(text: str) -> str:
@@ -114,7 +114,7 @@ def test_zero_byte_file_raises_load_error(tmp_path: Path, name: str) -> None:
 
 # ---- 4단계: 비교용 대안 로더 ----
 
-from golden_set.loaders import PdfplumberLoader, PythonDocxLoader, UnstructuredPptxLoader
+from golden_set.loading.loaders import PdfplumberLoader, PythonDocxLoader, UnstructuredPptxLoader
 
 
 @pytest.mark.parametrize("loader", [PythonDocxLoader(), PdfplumberLoader(), UnstructuredPptxLoader()])
@@ -172,8 +172,8 @@ def test_alt_loaders_wrap_errors(tmp_path: Path, name: str, loader: str) -> None
 
 # ---- .doc (내용이 RTF인 파일) ----
 
-from golden_set.loaders import RtfDocLoader, UnsupportedError
-from golden_set.loaders.doc import rtf_to_text
+from golden_set.loading.loaders import RtfDocLoader, UnsupportedError
+from golden_set.loading.loaders.doc import rtf_to_text
 
 
 def rtf_escape(text: str) -> str:

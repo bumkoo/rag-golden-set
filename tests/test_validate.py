@@ -5,7 +5,7 @@ from dataclasses import fields
 import pytest
 from langchain_core.documents import Document
 
-from golden_set.validate import FileReport, Thresholds, validate_docs
+from golden_set.loading.validation import FileReport, Thresholds, validate_docs
 
 GOOD = "가" * 60  # 기준을 모두 넘는 본문
 

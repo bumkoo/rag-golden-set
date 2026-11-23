@@ -1,0 +1,69 @@
+$ python -m golden_set.cli validate tests/fixtures --out report.csv --samples 1
+loader       status       doc_count  empty_ratio  avg_chars  broken_ratio  hangul_ratio  meta_ok  elapsed_sec  path  (reasons)
+pymupdf      error                                                                                             tests/fixtures/broken.pdf  (pymupdf: EmptyFileError: Cannot open empty file: filename='tests/fixtures/broken.pdf'.)
+stdlib       pass         1          0.000        96.0       0.0000        0.526         True     0.000        tests/fixtures/ko_cp949.txt
+stdlib       pass         1          0.000        96.0       0.0000        0.526         True     0.000        tests/fixtures/ko_utf8.txt
+-            unsupported                                                                                       tests/fixtures/old.doc  (unsupported)
+-            unsupported                                                                                       tests/fixtures/sheet.xlsx  (unsupported)
+python-pptx  pass         2          0.000        93.5       0.0000        0.630         True     0.078        tests/fixtures/sub/two_slides.pptx
+pymupdf      fail         4          0.500        33.8       0.0000        0.396         True     0.005        tests/fixtures/sub/with_blank.pdf  (empty_ratio 50.0% > 30.0%; avg_chars 33.8 < 50)
+pymupdf      pass         3          0.000        67.7       0.0000        0.406         True     0.001        tests/fixtures/three_pages.pdf
+docx2txt     pass         1          0.000        73.0       0.0000        0.373         True     0.002        tests/fixtures/two_paragraphs.docx
+pymupdf      pass         5          0.000        282.4      0.0000        0.449         True     0.002        tests/fixtures/with_header.pdf
+
+pass=6  fail=1  error=1  unsupported=2
+
+--- tests/fixtures/ko_cp949.txt [stdlib]
+강호에 떠도는 소문은 언제나 사실보다 빠르다. 객잔의 등불 아래에서 두 사람은 말없이 차를 마셨다.
+The rumor travels faster than the truth.
+
+--- tests/fixtures/ko_utf8.txt [stdlib]
+강호에 떠도는 소문은 언제나 사실보다 빠르다. 객잔의 등불 아래에서 두 사람은 말없이 차를 마셨다.
+The rumor travels faster than the truth.
+
+--- tests/fixtures/sub/two_slides.pptx [python-pptx] page=1
+첫 슬라이드: 문파의 내력
+
+창건 이래 삼대에 걸쳐 장문인이 바뀌었고, 그때마다 문규도 조금씩 달라졌다. History of the sect.
+
+--- tests/fixtures/sub/with_blank.pdf [pymupdf] page=1
+첫째 쪽 본문입니다. 산문 밖에는 눈이 내리고 있었다. Page one body text
+for extraction.
+
+
+--- tests/fixtures/three_pages.pdf [pymupdf] page=1
+첫째 쪽 본문입니다. 산문 밖에는 눈이 내리고 있었다. Page one body text
+for extraction.
+
+
+--- tests/fixtures/two_paragraphs.docx [docx2txt]
+첫째 문단입니다. 사부는 끝내 검을 뽑지 않았다.
+
+Second paragraph in English, mixed with 한국어.
+
+--- tests/fixtures/with_header.pdf [pymupdf] page=1
+문파 연대기  국가법령정보센터
+제1장 문파의 창건
+첫 장문인 청운은 황하 기슭의 폐사에서 문파를 열었다. 그는 제자들에게 검보다 먼저 신의를
+가르쳤고, 문규의 첫 조항을 '빚은 갚고 은혜는 잊지 않는다'로 정했다. 창건 첫해 겨울,
+문파는 양식이 모자라 산 아래 마을에 쌀을 빌렸다.
+In chapter 1, the sect's leader faced a choice
+between the sword and the promise, and the
+chronicle records that the promise prevailed.
+- 1 -
+
+saved: report.csv
+exit=1
+
+$ cat report.csv
+﻿path,file_type,loader,status,doc_count,empty_ratio,avg_chars,broken_ratio,hangul_ratio,meta_ok,elapsed_sec,reasons
+tests/fixtures/broken.pdf,pdf,pymupdf,error,,,,,,,,pymupdf: EmptyFileError: Cannot open empty file: filename='tests/fixtures/broken.pdf'.
+tests/fixtures/ko_cp949.txt,txt,stdlib,pass,1,0.000,96.0,0.0000,0.526,True,0.000,
+tests/fixtures/ko_utf8.txt,txt,stdlib,pass,1,0.000,96.0,0.0000,0.526,True,0.000,
+tests/fixtures/old.doc,doc,-,unsupported,,,,,,,,unsupported
+tests/fixtures/sheet.xlsx,xlsx,-,unsupported,,,,,,,,unsupported
+tests/fixtures/sub/two_slides.pptx,pptx,python-pptx,pass,2,0.000,93.5,0.0000,0.630,True,0.078,
+tests/fixtures/sub/with_blank.pdf,pdf,pymupdf,fail,4,0.500,33.8,0.0000,0.396,True,0.005,empty_ratio 50.0% > 30.0%; avg_chars 33.8 < 50
+tests/fixtures/three_pages.pdf,pdf,pymupdf,pass,3,0.000,67.7,0.0000,0.406,True,0.001,
+tests/fixtures/two_paragraphs.docx,docx,docx2txt,pass,1,0.000,73.0,0.0000,0.373,True,0.002,
+tests/fixtures/with_header.pdf,pdf,pymupdf,pass,5,0.000,282.4,0.0000,0.449,True,0.002,

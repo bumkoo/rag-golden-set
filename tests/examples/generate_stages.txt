@@ -1,0 +1,60 @@
+가짜 LLM으로 돌린 예시다 (청크 40개, 후보 30개). 걸린 시간과 요청 수는 실제 서버와 다르다.
+출력이 터미널이 아니라서(파일로 돌렸다) 진행은 10%마다 한 줄씩만 찍힌다.
+터미널에서는 진행 줄 하나를 제자리에서 다시 그리고, 단계가 끝나면 요약 줄만 남는다.
+
+$ python -m golden_set.cli generate chunks.jsonl --generator ragas --size 30 --out ragas.candidates.jsonl --no-adapt-prompts --log-file generate.log
+[1/6] 요약                  4/40  10%
+[1/6] 요약                  8/40  20%
+[1/6] 요약                  12/40  30%
+[1/6] 요약                  16/40  40%
+[1/6] 요약                  20/40  50%
+[1/6] 요약                  24/40  60%
+[1/6] 요약                  28/40  70%
+[1/6] 요약                  32/40  80%
+[1/6] 요약                  36/40  90%
+[1/6] 요약                  40/40  0초  LLM 40회  실패 0
+[2/6] 임베딩·주제·개체명    12/120  10%
+[2/6] 임베딩·주제·개체명    24/120  20%
+[2/6] 임베딩·주제·개체명    36/120  30%
+[2/6] 임베딩·주제·개체명    48/120  40%
+[2/6] 임베딩·주제·개체명    60/120  50%
+[2/6] 임베딩·주제·개체명    72/120  60%
+[2/6] 임베딩·주제·개체명    84/120  70%
+[2/6] 임베딩·주제·개체명    96/120  80%
+[2/6] 임베딩·주제·개체명    108/120  90%
+[2/6] 임베딩·주제·개체명    120/120  임베딩 40, 주제 40, 개체명 40  0초  LLM 80회  임베딩 40회  실패 0
+[3/6] 관계                  유사도 780개, 개체명 겹침 780개, 선 없는 청크 0개
+[4/6] 질문자                3명: 형사 전문 변호사, 법학과 학생, 사법경찰관  LLM 3회
+[5/6] 시나리오              30개 (단일 10, 넓은 주제 10, 특정 대상 10)  0초  LLM 40회
+[6/6] 질문·정답             3/30  10%
+[6/6] 질문·정답             6/30  20%
+[6/6] 질문·정답             9/30  30%
+[6/6] 질문·정답             12/30  40%
+[6/6] 질문·정답             15/30  50%
+[6/6] 질문·정답             18/30  60%
+[6/6] 질문·정답             21/30  70%
+[6/6] 질문·정답             24/30  80%
+[6/6] 질문·정답             27/30  90%
+[6/6] 질문·정답             30/30  0초  LLM 30회  실패 0  출처 못 찾음 0
+generator=ragas  requested=30  produced=30  skipped=0
+llm    requests=193  ok=193  failed=0 (-)  think_stripped=0  reasoning_separated=0  truncated=0
+embed  requests=40  ok=40  failed=0 (-)  think_stripped=0  reasoning_separated=0  truncated=0
+  note: language=ko  llm_context='Write the query and the answer in Korean (한국어), the same language as the context. Do not translate names or terms.'
+  note: synthesizers: single_hop_specific_query_synthesizer, multi_hop_abstract_query_synthesizer, multi_hop_specific_query_synthesizer
+saved: ragas.candidates.jsonl  (30 candidates, chunks=40)
+
+(종료 코드 0)
+
+$ cat generate.log
+[1/6] 요약                  40/40  0초  LLM 40회  실패 0
+[2/6] 임베딩·주제·개체명    120/120  임베딩 40, 주제 40, 개체명 40  0초  LLM 80회  임베딩 40회  실패 0
+[3/6] 관계                  유사도 780개, 개체명 겹침 780개, 선 없는 청크 0개
+[4/6] 질문자                3명: 형사 전문 변호사, 법학과 학생, 사법경찰관  LLM 3회
+[5/6] 시나리오              30개 (단일 10, 넓은 주제 10, 특정 대상 10)  0초  LLM 40회
+[6/6] 질문·정답             30/30  0초  LLM 30회  실패 0  출처 못 찾음 0
+generator=ragas  requested=30  produced=30  skipped=0
+llm    requests=193  ok=193  failed=0 (-)  think_stripped=0  reasoning_separated=0  truncated=0
+embed  requests=40  ok=40  failed=0 (-)  think_stripped=0  reasoning_separated=0  truncated=0
+  note: language=ko  llm_context='Write the query and the answer in Korean (한국어), the same language as the context. Do not translate names or terms.'
+  note: synthesizers: single_hop_specific_query_synthesizer, multi_hop_abstract_query_synthesizer, multi_hop_specific_query_synthesizer
+saved: ragas.candidates.jsonl  (30 candidates, chunks=40)
