@@ -21,9 +21,9 @@ compare = [
 # 골든 후보 생성기 (cli ping, generate). 확인한 버전: ragas 0.4.4, deepeval 4.3.4, openai 1.109.1 (NOTES.md 8장)
 generate = [
     "openai>=1.109",
-    "ragas>=0.4.4",
+    "ragas>=0.4.4,<0.5",     # 내부 구조(변환 실행 계획, 합성기, tqdm 막대)에 기대므로 상한을 둔다
     "rapidfuzz>=3.0",     # ragas OverlapScoreBuilder가 쓰는데 ragas 기본 의존성에는 없다
-    "deepeval>=4.3.4",
+    "deepeval>=4.3.4,<4.4",  # 위와 같다 (Synthesizer의 _progress 인자, 스키마 이름)
 ]
 dev = [
     "pytest>=8",
