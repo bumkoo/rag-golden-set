@@ -4,9 +4,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
-from langchain_core.documents import Document
-
 from golden_set.domain.candidate import GoldenCandidate
+from golden_set.domain.chunk import Chunk
 from golden_set.generation.llm.client import CallLog
 from golden_set.generation.progress import ProgressReporter
 
@@ -23,7 +22,7 @@ class Generator(Protocol):
 
     name: str  # "ragas" | "deepeval"
 
-    def generate(self, chunks: list[Document], size: int) -> list[GoldenCandidate]: ...
+    def generate(self, chunks: list[Chunk], size: int) -> list[GoldenCandidate]: ...
 
 
 @dataclass

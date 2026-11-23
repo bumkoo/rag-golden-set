@@ -7,9 +7,9 @@ from pathlib import Path
 
 from deepeval.dataset.golden import Golden
 from deepeval.synthesizer.config import EvolutionConfig, FiltrationConfig, StylingConfig
-from langchain_core.documents import Document
 
 from golden_set.domain.candidate import GoldenCandidate, make_id
+from golden_set.domain.chunk import Chunk
 from golden_set.domain.language import detect_language
 from golden_set.generation.deepeval.adapters import ChatDeepEvalModel
 from golden_set.generation.deepeval.contexts import ContextGroup, build_contexts, choose_contexts
@@ -35,7 +35,7 @@ STYLING = {
 # ---- 결과 변환 ----
 
 
-def candidates_from_deepeval(goldens: list[Golden], chunks: list[Document], model: str, report: GenerateReport | None = None) -> list[GoldenCandidate]:
+def candidates_from_deepeval(goldens: list[Golden], chunks: list[Chunk], model: str, report: GenerateReport | None = None) -> list[GoldenCandidate]:
     """deepeval Golden 목록을 GoldenCandidate로 옮긴다. context는 우리 청크 본문 그대로라 sources를 정확히 채운다."""
     report = report or GenerateReport("deepeval")
     index = ChunkIndex(chunks)
@@ -137,8 +137,8 @@ class DeepEvalGenerator:
             await asyncio.gather(*(one(i, g, progress, pbar_id) for i, g in enumerate(groups)))
         return results
 
-    def generate(self, chunks: list[Document], size: int) -> list[GoldenCandidate]:
-        docs = [c for c in chunks if c.page_content.strip()]
+    def generate(self, chunks: list[Chunk], size: int) -> list[GoldenCandidate]:
+        docs = [c for c in chunks if c.text.strip()]
         if not docs:
             raise GenerateError("no chunks")
         self.report.requested = size
@@ -148,8 +148,8 @@ class DeepEvalGenerator:
         finally:
             stages.abort()  # 예외로 나갈 때 열려 있는 단계를 닫는다
 
-    def _generate(self, docs: list[Document], size: int, stages: Stages) -> list[GoldenCandidate]:
-        language = self.options.language if self.options.language != "auto" else detect_language(" ".join(c.page_content for c in docs))
+    def _generate(self, docs: list[Chunk], size: int, stages: Stages) -> list[GoldenCandidate]:
+        language = self.options.language if self.options.language != "auto" else detect_language(" ".join(c.text for c in docs))
 
         stages.start(DEEPEVAL_STAGES[0])
         built = build_contexts(docs, self.options.context_chunks)

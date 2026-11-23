@@ -1,20 +1,20 @@
 """생성기 공통 도우미: 언어 판별, 근거 본문 ↔ 청크 대조, 리포트, 생성기 조회."""
 
 import pytest
-from langchain_core.documents import Document
 
 from golden_set.domain.candidate import Source
+from golden_set.domain.chunk import Chunk
 from golden_set.domain.language import detect_language
 from golden_set.generation import GenerateError, GenerateReport, Generator, get_generator
 from golden_set.generation.llm import Endpoint, LLMSettings
 from golden_set.generation.matching import ChunkIndex, sources_for
 
 
-def chunk(text: str, cid: str, source: str = "a.pdf", page: int | None = 1) -> Document:
+def chunk(text: str, cid: str, source: str = "a.pdf", page: int | None = 1) -> Chunk:
     meta: dict = {"source": source, "file_type": "pdf", "loader": "t", "chunk_id": cid, "chunk_index": 0}
     if page is not None:
         meta["page"] = page
-    return Document(page_content=text, metadata=meta)
+    return Chunk.from_metadata(text, meta)
 
 
 @pytest.mark.parametrize(

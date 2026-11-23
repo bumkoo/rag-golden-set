@@ -24,7 +24,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         return 2
     try:
         candidates = read_candidates(args.candidates)
-        chunk_ids = {str(c.metadata["chunk_id"]) for c in read_chunks(chunks_path)}
+        chunk_ids = {c.chunk_id for c in read_chunks(chunks_path)}
     except (OSError, ValueError, CandidateError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2

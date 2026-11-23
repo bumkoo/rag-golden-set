@@ -28,7 +28,7 @@ INTERNAL_ALLOWED: dict[str, set[str]] = {
 # 패키지 → import해도 되는 외부 패키지(최상위 이름). None은 제한 없음.
 LOADER_LIBRARIES = {"pymupdf", "pdfplumber", "docx", "docx2txt", "pptx", "unstructured"}
 EXTERNAL_ALLOWED: dict[str, set[str] | None] = {
-    "domain": {"langchain_core"},  # 3단계(도메인에서 LangChain 떼기) 뒤에는 표준 라이브러리만
+    "domain": set(),  # 표준 라이브러리만
     "loading": {"langchain_core"} | LOADER_LIBRARIES,
     "chunking": {"langchain_core"},
     "generation": {"langchain_core", "openai", "ragas", "deepeval", "rich"},  # rich: deepeval이 진행을 적을 Progress 객체를 받는다
@@ -44,6 +44,9 @@ TOOL_HOME: dict[str, str] = {
     "deepeval": "generation/deepeval/",
     "rich": "generation/deepeval/",
 }
+
+# LangChain을 써도 되는 위치: 로더 출력(Document)을 다루는 곳과 ragas 어댑터. 그 밖에서는 domain.Chunk로 주고받는다.
+LANGCHAIN_HOME = ("loading/", "chunking/", "generation/ragas/", "cli/")
 
 
 def imported_modules(tree: ast.AST) -> list[tuple[int, str]]:
@@ -88,6 +91,8 @@ def violations_in(relative_path: str, source: str) -> list[str]:
         home = TOOL_HOME.get(top)
         if home is not None and not relative_path.startswith(home):
             bad(line, f"{top!r} may be imported only under {home}")
+        if top == "langchain_core" and not relative_path.startswith(LANGCHAIN_HOME):
+            bad(line, f"langchain_core may be imported only under {', '.join(LANGCHAIN_HOME)}")
     return out
 
 
@@ -131,9 +136,9 @@ def test_checker_catches_imports_inside_functions_and_relative_imports() -> None
     assert "relative import" in violations_in("chunking/chunker.py", "from ..loading import registry\n")[0]
 
 
-def test_checker_catches_domain_importing_other_packages() -> None:
+def test_checker_catches_domain_importing_anything_but_stdlib() -> None:
     assert violations_in("domain/chunk.py", "import hashlib\nfrom dataclasses import dataclass\n") == []
-    assert violations_in("domain/store.py", "import openai\n") == ["domain/store.py:1: domain must not import external package 'openai'"]
+    assert violations_in("domain/store.py", "from langchain_core.documents import Document\n") == ["domain/store.py:1: domain must not import external package 'langchain_core'"]
     assert violations_in("domain/chunk.py", "from golden_set.chunking.chunker import chunk_text\n") == ["domain/chunk.py:1: domain must not import golden_set.chunking"]
     assert violations_in("evaluation/checks.py", "import rapidfuzz\n") == ["evaluation/checks.py:1: evaluation must not import external package 'rapidfuzz'"]
 
@@ -147,6 +152,14 @@ def test_checker_keeps_each_tool_in_its_own_package() -> None:
     assert violations_in("generation/deepeval/generator.py", "from openai import OpenAI\n") == ["generation/deepeval/generator.py:1: 'openai' may be imported only under generation/llm/"]
     assert violations_in("loading/registry.py", "import ragas\n") == ["loading/registry.py:1: loading must not import external package 'ragas'"]
     assert violations_in("cli/commands/generate.py", "import ragas\n") == ["cli/commands/generate.py:1: 'ragas' may be imported only under generation/ragas/"]
+
+
+def test_checker_keeps_langchain_out_of_shared_generation_code() -> None:
+    line = "from langchain_core.documents import Document\n"
+    assert violations_in("generation/ragas/adapters.py", line) == []
+    assert violations_in("loading/loaders/base.py", line) == [] and violations_in("chunking/cleaning.py", line) == []
+    for path in ("generation/matching.py", "generation/generator.py", "generation/deepeval/contexts.py", "generation/llm/client.py"):
+        assert violations_in(path, line) == [f"{path}:1: langchain_core may be imported only under loading/, chunking/, generation/ragas/, cli/"]
 
 
 def test_checker_reports_unknown_package() -> None:
@@ -194,8 +207,8 @@ def test_validate_prepare_check_run_without_generate_extra(tmp_path: Path) -> No
         id=make_id("ragas", 1),
         question="첫 번째 문장은 어떻게 이어지는가?",
         reference_answer="길게 이어진다.",
-        reference_contexts=[first.page_content],
-        sources=[Source(chunk_id=first.metadata["chunk_id"], source=first.metadata["source"], page=None)],
+        reference_contexts=[first.text],
+        sources=[Source(chunk_id=first.chunk_id, source=first.source, page=first.page)],
         question_type="",
         language="ko",
         generator="ragas",

@@ -3,7 +3,7 @@
 import math
 from dataclasses import dataclass
 
-from langchain_core.documents import Document
+from golden_set.domain.chunk import Chunk
 
 MAX_GOLDENS_PER_CONTEXT = 5  # context가 모자랄 때 context 하나에서 뽑는 상한
 
@@ -12,25 +12,25 @@ MAX_GOLDENS_PER_CONTEXT = 5  # context가 모자랄 때 context 하나에서 뽑
 class ContextGroup:
     """같은 파일의 이웃한 청크 1~3개."""
 
-    chunks: list[Document]
+    chunks: list[Chunk]
 
     @property
     def texts(self) -> list[str]:
-        return [c.page_content for c in self.chunks]
+        return [c.text for c in self.chunks]
 
     @property
     def source(self) -> str:
-        return str(self.chunks[0].metadata.get("source", ""))
+        return self.chunks[0].source
 
 
-def build_contexts(chunks: list[Document], per_context: int = 3) -> list[ContextGroup]:
+def build_contexts(chunks: list[Chunk], per_context: int = 3) -> list[ContextGroup]:
     """파일별로 청크를 순서대로 per_context개씩 묶는다. 마지막 묶음은 더 짧을 수 있다."""
     if not 1 <= per_context <= 3:
         raise ValueError("per_context must be 1..3")
-    by_source: dict[str, list[Document]] = {}
+    by_source: dict[str, list[Chunk]] = {}
     for c in chunks:
-        if c.page_content.strip():
-            by_source.setdefault(str(c.metadata.get("source", "")), []).append(c)
+        if c.text.strip():
+            by_source.setdefault(c.source, []).append(c)
     groups: list[ContextGroup] = []
     for docs in by_source.values():
         for i in range(0, len(docs), per_context):

@@ -1,10 +1,9 @@
-"""Ragas 생성기. TestsetGenerator에 우리 LLM·임베딩을 넣고 청크 Document를 그대로 넘긴다."""
+"""Ragas 생성기. TestsetGenerator에 우리 LLM·임베딩을 넣고 청크를 지식 그래프의 노드로 그대로 넘긴다."""
 
 import asyncio
 import re
 from dataclasses import dataclass
 
-from langchain_core.documents import Document
 from ragas.run_config import RunConfig
 from ragas.testset import TestsetGenerator
 from ragas.testset.graph import KnowledgeGraph, Node, NodeType
@@ -13,6 +12,7 @@ from ragas.testset.synthesizers import default_query_distribution
 from ragas.testset.transforms import apply_transforms
 
 from golden_set.domain.candidate import GoldenCandidate, make_id
+from golden_set.domain.chunk import Chunk
 from golden_set.domain.language import detect_language
 from golden_set.generation.generator import GenerateError, GenerateReport
 from golden_set.generation.llm.client import ChatClient, EmbedClient
@@ -40,7 +40,7 @@ def strip_hop_prefix(context: str) -> str:
     return _HOP_PREFIX.sub("", context, count=1)
 
 
-def candidates_from_ragas(samples, chunks: list[Document], model: str, report: GenerateReport | None = None) -> list[GoldenCandidate]:
+def candidates_from_ragas(samples, chunks: list[Chunk], model: str, report: GenerateReport | None = None) -> list[GoldenCandidate]:
     """ragas TestsetSample 목록을 GoldenCandidate로 옮긴다. 근거 본문은 청크와 대조해 sources를 채운다.
 
     질문이나 정답이 빈 샘플은 건너뛰고 리포트에 적는다. 출처를 못 찾은 샘플은 sources를 비워 두고 검증에 맡긴다.
@@ -120,8 +120,8 @@ class RagasGenerator:
         except Exception as e:
             self.report.skip(f"adapt_prompts: {type(e).__name__}: {e}")
 
-    def generate(self, chunks: list[Document], size: int) -> list[GoldenCandidate]:
-        docs = [c for c in chunks if c.page_content.strip()]
+    def generate(self, chunks: list[Chunk], size: int) -> list[GoldenCandidate]:
+        docs = [c for c in chunks if c.text.strip()]
         if not docs:
             raise GenerateError("no chunks")
         self.report.requested = size
@@ -139,12 +139,12 @@ class RagasGenerator:
         with quiet_ragas_bars():
             apply_transforms(kg, transform, run_config=self.run_config)
 
-    def _generate(self, docs: list[Document], size: int, stages: Stages) -> list[GoldenCandidate]:
-        language = self.options.language if self.options.language != "auto" else detect_language(" ".join(c.page_content for c in docs))
+    def _generate(self, docs: list[Chunk], size: int, stages: Stages) -> list[GoldenCandidate]:
+        language = self.options.language if self.options.language != "auto" else detect_language(" ".join(c.text for c in docs))
         llm_context = LANGUAGE_INSTRUCTION[language]
         self.report.notes.append(f"language={language}  llm_context={llm_context!r}")
 
-        kg = KnowledgeGraph(nodes=[Node(type=NodeType.CHUNK, properties={"page_content": c.page_content, "document_metadata": dict(c.metadata)}) for c in docs])
+        kg = KnowledgeGraph(nodes=[Node(type=NodeType.CHUNK, properties={"page_content": c.text, "document_metadata": c.metadata}) for c in docs])
         summary, extract, relate = build_transforms(self.llm, self.embedding, self.report)
 
         self._run_transform(kg, summary, stages, RAGAS_STAGES[0], counted=True)

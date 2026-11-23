@@ -38,11 +38,11 @@ def cmd_prepare(args: argparse.Namespace) -> int:
             print(f"  [{line.position}] x{line.count}  {line.example!r}  (pattern {line.pattern!r})")
 
     chunks = chunk_docs(cleaned, chunk_settings)
-    per_file = Counter(str(c.metadata.get("source", "")) for c in chunks)
+    per_file = Counter(c.source for c in chunks)
     print(f"\n{'chunks':>6}  source")
     for source in sorted({str(d.metadata.get('source', '')) for d in docs}):
         print(f"{per_file.get(source, 0):>6}  {source}")
-    sizes = [len(c.page_content) for c in chunks]
+    sizes = [len(c.text) for c in chunks]
     print(
         f"\ndocs={len(docs)}  chunks={len(chunks)}  "
         f"chars min/avg/max={min(sizes) if sizes else 0}/{(sum(sizes) / len(sizes)) if sizes else 0:.0f}/{max(sizes) if sizes else 0}  "

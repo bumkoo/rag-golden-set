@@ -192,11 +192,11 @@ def test_csv_columns_and_encoding(tmp_path: Path) -> None:
 
 
 def write_chunks_file(path: Path) -> None:
-    from langchain_core.documents import Document
+    from golden_set.domain.chunk import Chunk
 
     from golden_set.domain.store import write_chunks
 
-    docs = [Document(page_content=KO_CTX, metadata={"source": "dir/a.pdf", "file_type": "pdf", "loader": "t", "page": 1, "chunk_id": "a.pdf:p1:0:aaaa", "chunk_index": 0})]
+    docs = [Chunk.from_metadata(KO_CTX, {"source": "dir/a.pdf", "file_type": "pdf", "loader": "t", "page": 1, "chunk_id": "a.pdf:p1:0:aaaa", "chunk_index": 0})]
     write_chunks(docs, str(path))
 
 

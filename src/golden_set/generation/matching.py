@@ -2,9 +2,8 @@
 
 import re
 
-from langchain_core.documents import Document
-
 from golden_set.domain.candidate import Source
+from golden_set.domain.chunk import Chunk
 
 
 def extract_json(text: str):
@@ -38,16 +37,16 @@ def normalize_text(text: str) -> str:
 class ChunkIndex:
     """청크 본문으로 청크를 찾는다. 정확히 같으면 그것, 아니면 공백만 다른 것, 그래도 없으면 None."""
 
-    def __init__(self, chunks: list[Document]):
-        self.by_id: dict[str, Document] = {}
-        self.exact: dict[str, Document] = {}
-        self.normalized: dict[str, Document] = {}
+    def __init__(self, chunks: list[Chunk]):
+        self.by_id: dict[str, Chunk] = {}
+        self.exact: dict[str, Chunk] = {}
+        self.normalized: dict[str, Chunk] = {}
         for c in chunks:
-            self.by_id.setdefault(str(c.metadata.get("chunk_id", "")), c)
-            self.exact.setdefault(c.page_content, c)
-            self.normalized.setdefault(normalize_text(c.page_content), c)
+            self.by_id.setdefault(c.chunk_id, c)
+            self.exact.setdefault(c.text, c)
+            self.normalized.setdefault(normalize_text(c.text), c)
 
-    def find(self, text: str) -> Document | None:
+    def find(self, text: str) -> Chunk | None:
         return self.exact.get(text) or self.normalized.get(normalize_text(text))
 
     def source_of(self, text: str) -> Source | None:
@@ -57,9 +56,8 @@ class ChunkIndex:
         return source_from_chunk(chunk)
 
 
-def source_from_chunk(chunk: Document) -> Source:
-    page = chunk.metadata.get("page")
-    return Source(chunk_id=str(chunk.metadata.get("chunk_id", "")), source=str(chunk.metadata.get("source", "")), page=page if isinstance(page, int) else None)
+def source_from_chunk(chunk: Chunk) -> Source:
+    return Source(chunk_id=chunk.chunk_id, source=chunk.source, page=chunk.page)
 
 
 def sources_for(contexts: list[str], index: ChunkIndex) -> tuple[list[Source], int]:

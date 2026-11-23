@@ -2,22 +2,21 @@
 
 import json
 
-from langchain_core.documents import Document
-
 from golden_set.domain.candidate import CandidateError, GoldenCandidate
+from golden_set.domain.chunk import Chunk
 
 
-def write_chunks(chunks: list[Document], path: str) -> None:
+def write_chunks(chunks: list[Chunk], path: str) -> None:
     """청크를 JSONL로 저장한다. 한 줄에 {"chunk_id", "text", "metadata"} 하나다."""
     with open(path, "w", encoding="utf-8") as f:
-        for doc in chunks:
-            row = {"chunk_id": doc.metadata["chunk_id"], "text": doc.page_content, "metadata": doc.metadata}
+        for chunk in chunks:
+            row = {"chunk_id": chunk.chunk_id, "text": chunk.text, "metadata": chunk.metadata}
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
-def read_chunks(path: str) -> list[Document]:
-    """chunks.jsonl을 다시 Document 리스트로 읽는다. 빈 줄은 건너뛴다."""
-    chunks: list[Document] = []
+def read_chunks(path: str) -> list[Chunk]:
+    """chunks.jsonl을 Chunk 리스트로 읽는다. 빈 줄은 건너뛴다."""
+    chunks: list[Chunk] = []
     with open(path, encoding="utf-8") as f:
         for n, line in enumerate(f, start=1):
             if not line.strip():
@@ -26,7 +25,7 @@ def read_chunks(path: str) -> list[Document]:
             try:
                 metadata = dict(row["metadata"])
                 metadata.setdefault("chunk_id", row["chunk_id"])
-                chunks.append(Document(page_content=row["text"], metadata=metadata))
+                chunks.append(Chunk.from_metadata(row["text"], metadata))
             except (KeyError, TypeError) as e:
                 raise ValueError(f"{path}:{n}: bad chunk row: {e}") from e
     return chunks

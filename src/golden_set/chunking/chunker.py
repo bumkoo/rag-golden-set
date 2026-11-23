@@ -1,11 +1,11 @@
-"""Document → 청크 Document. 글자 수 기준으로 문단과 문장 경계에서 자른다. 저장은 domain.store가 한다."""
+"""Document → Chunk. 글자 수 기준으로 문단과 문장 경계에서 자른다. 저장은 domain.store가 한다."""
 
 import re
 from dataclasses import dataclass
 
 from langchain_core.documents import Document
 
-from golden_set.domain.chunk import make_chunk_id
+from golden_set.domain.chunk import Chunk, make_chunk_id
 
 
 @dataclass(frozen=True)
@@ -89,10 +89,10 @@ def chunk_text(text: str, settings: ChunkSettings | None = None) -> list[str]:
     return [c for c in chunks if len("".join(c.split())) >= st.min_chars]
 
 
-def chunk_docs(docs: list[Document], settings: ChunkSettings | None = None) -> list[Document]:
+def chunk_docs(docs: list[Document], settings: ChunkSettings | None = None) -> list[Chunk]:
     """Document마다 청크를 만든다. 청크는 원본 메타데이터를 물려받고 chunk_id, chunk_index를 얻는다."""
     st = settings or ChunkSettings()
-    out: list[Document] = []
+    out: list[Chunk] = []
     for doc in docs:
         source = str(doc.metadata.get("source", ""))
         page = doc.metadata.get("page")
@@ -100,5 +100,5 @@ def chunk_docs(docs: list[Document], settings: ChunkSettings | None = None) -> l
             metadata = dict(doc.metadata)
             metadata["chunk_id"] = make_chunk_id(source, page, i)
             metadata["chunk_index"] = i
-            out.append(Document(page_content=text, metadata=metadata))
+            out.append(Chunk.from_metadata(text, metadata))
     return out

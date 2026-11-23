@@ -70,12 +70,17 @@ class RagasResponder:
 
 def law_chunks(n: int, source: str = "docs/law.pdf") -> list:
     """서로 다른 본문을 가진 청크 n개 (chunks.jsonl에서 읽은 것과 같은 꼴)."""
-    from langchain_core.documents import Document
+    from golden_set.domain.chunk import Chunk
 
     return [
-        Document(
-            page_content=f"제{i}조 강호의 규율은 무공이 아니라 신의에서 나온다. 청운 문파는 화산에 있고 장문인은 제자에게 그 뜻을 오래 가르쳤다. 비밀본문{i:03d}",
-            metadata={"chunk_id": f"law.pdf:p{i}:0:abcd1234", "chunk_index": 0, "source": source, "file_type": "pdf", "loader": "pymupdf", "page": i},
+        Chunk(
+            chunk_id=f"law.pdf:p{i}:0:abcd1234",
+            text=f"제{i}조 강호의 규율은 무공이 아니라 신의에서 나온다. 청운 문파는 화산에 있고 장문인은 제자에게 그 뜻을 오래 가르쳤다. 비밀본문{i:03d}",
+            source=source,
+            page=i,
+            file_type="pdf",
+            loader="pymupdf",
+            extra={"chunk_index": 0},
         )
         for i in range(1, n + 1)
     ]

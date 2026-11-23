@@ -188,7 +188,7 @@ def test_chunk_docs_inherit_metadata_and_stable_ids() -> None:
 def test_chunk_boundaries_do_not_cross_pages() -> None:
     docs = [page("가" * 150 + ".", 1), page("나" * 150 + ".", 2)]
     chunks = chunk_docs(docs)
-    assert [c.page_content for c in chunks] == ["가" * 150 + ".", "나" * 150 + "."]
+    assert [c.text for c in chunks] == ["가" * 150 + ".", "나" * 150 + "."]
 
 
 # ---- chunks.jsonl ----
@@ -202,7 +202,7 @@ def test_chunks_jsonl_roundtrip(tmp_path: Path) -> None:
     raw = out.read_text(encoding="utf-8")
     assert "강호의" in raw and "\\u" not in raw  # 한글 그대로
     back = read_chunks(str(out))
-    assert [(c.page_content, c.metadata) for c in back] == [(c.page_content, c.metadata) for c in chunks]
+    assert [(c.text, c.metadata) for c in back] == [(c.text, c.metadata) for c in chunks]
 
 
 def test_read_chunks_rejects_bad_row(tmp_path: Path) -> None:

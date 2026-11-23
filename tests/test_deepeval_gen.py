@@ -6,9 +6,9 @@ import re
 import pytest
 from conftest import choice, completion, fake_chat
 from deepeval.dataset.golden import Golden
-from langchain_core.documents import Document
 
 from golden_set.domain.candidate import Source
+from golden_set.domain.chunk import Chunk
 from golden_set.generation import GenerateReport, Generator
 from golden_set.generation.deepeval.adapters import ChatDeepEvalModel
 from golden_set.generation.deepeval.contexts import build_contexts, choose_contexts
@@ -19,8 +19,8 @@ from golden_set.generation.matching import extract_json
 KO = ["첫 장문인 청운은 황하 기슭의 폐사에서 문파를 열었다.", "둘째 장문인 백리는 검을 뽑지 않았다.", "셋째 장문인 운하는 십 년 동안 산문을 닫았다.", "넷째 장문인 소천은 문규를 고쳤다."]
 
 
-def chunk(text: str, i: int, source: str = "a.pdf") -> Document:
-    return Document(page_content=text, metadata={"source": source, "file_type": "pdf", "loader": "pymupdf", "page": i + 1, "chunk_id": f"{source}:p{i + 1}:0:abcd", "chunk_index": 0})
+def chunk(text: str, i: int, source: str = "a.pdf") -> Chunk:
+    return Chunk.from_metadata(text, {"source": source, "file_type": "pdf", "loader": "pymupdf", "page": i + 1, "chunk_id": f"{source}:p{i + 1}:0:abcd", "chunk_index": 0})
 
 
 CHUNKS = [chunk(t, i) for i, t in enumerate(KO)] + [chunk("Chapter one of file b.", 0, "b.pdf"), chunk("Chapter two of file b.", 1, "b.pdf")]
@@ -54,7 +54,7 @@ def test_extract_json_errors() -> None:
 
 def test_build_contexts_groups_neighbors_per_file() -> None:
     groups = build_contexts(CHUNKS, 3)
-    assert [[c.metadata["chunk_id"] for c in g.chunks] for g in groups] == [
+    assert [[c.chunk_id for c in g.chunks] for g in groups] == [
         ["a.pdf:p1:0:abcd", "a.pdf:p2:0:abcd", "a.pdf:p3:0:abcd"],
         ["a.pdf:p4:0:abcd"],
         ["b.pdf:p1:0:abcd", "b.pdf:p2:0:abcd"],

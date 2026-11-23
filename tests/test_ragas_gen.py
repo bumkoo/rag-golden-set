@@ -4,7 +4,6 @@ import asyncio
 
 import pytest
 from conftest import fake_chat, fake_embed
-from langchain_core.documents import Document
 from ragas.dataset_schema import SingleTurnSample
 from ragas.run_config import RunConfig
 from ragas.testset.graph import KnowledgeGraph, Node, NodeType
@@ -12,6 +11,7 @@ from ragas.testset.persona import Persona
 from ragas.testset.synthesizers.testset_schema import TestsetSample as RagasTestsetSample  # 이름에 Test가 있어 pytest가 수집하려 든다
 
 from golden_set.domain.candidate import Source
+from golden_set.domain.chunk import Chunk
 from golden_set.generation import GenerateReport
 from golden_set.generation.llm import Endpoint, LLMSettings
 from golden_set.generation.ragas.adapters import ChatRagasEmbedding, ChatRagasLLM
@@ -23,8 +23,8 @@ KO = "강호의 규율은 무공이 아니라 신의에서 나온다고 장문�
 EN = "The master never drew the sword, and the pupil did not understand why for many years."
 
 
-def chunk(text: str, cid: str, page: int = 1, source: str = "dir/a.pdf") -> Document:
-    return Document(page_content=text, metadata={"source": source, "file_type": "pdf", "loader": "pymupdf", "page": page, "chunk_id": cid, "chunk_index": 0})
+def chunk(text: str, cid: str, page: int = 1, source: str = "dir/a.pdf") -> Chunk:
+    return Chunk.from_metadata(text, {"source": source, "file_type": "pdf", "loader": "pymupdf", "page": page, "chunk_id": cid, "chunk_index": 0})
 
 
 CHUNKS = [chunk(KO, "a.pdf:p1:0:aaaa", 1), chunk(EN, "a.pdf:p2:0:aaaa", 2)]

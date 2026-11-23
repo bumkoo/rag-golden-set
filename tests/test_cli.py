@@ -131,7 +131,7 @@ def test_prepare_writes_chunks_and_reports_removed_headers(tmp_path: Path, capsy
 
     chunks = read_chunks(str(out))
     assert len(chunks) >= 6
-    texts = [c.page_content for c in chunks]
+    texts = [c.text for c in chunks]
     assert not any("법제처" in t or "형법 -" in t for t in texts)
     assert all(len(t) <= 1200 for t in texts)
     pdf_chunks = [c for c in chunks if c.metadata["file_type"] == "pdf"]
@@ -149,7 +149,7 @@ def test_prepare_on_fixture_dir_removes_header_pdf_lines(tmp_path: Path, capsys)
     assert "removed from" in printed and "with_header.pdf" in printed and "[tail] x5" in printed
     header_chunks = [c for c in read_chunks(str(out)) if c.metadata["source"].endswith("with_header.pdf")]
     assert len(header_chunks) == 5
-    assert not any("국가법령정보센터" in c.page_content or c.page_content.endswith("-") for c in header_chunks)
+    assert not any("국가법령정보센터" in c.text or c.text.endswith("-") for c in header_chunks)
 
 
 def test_prepare_exit_1_on_load_error_but_still_writes(tmp_path: Path) -> None:
@@ -182,7 +182,7 @@ def test_prepare_chunk_options(tmp_path: Path) -> None:
     out = tmp_path / "chunks.jsonl"
     assert main(["prepare", str(root), "--out", str(out), "--chunk-size", "300", "--overlap", "0", "--min-chars", "50"]) == 0
     chunks = read_chunks(str(out))
-    assert len(chunks) > 5 and all(len(c.page_content) <= 300 for c in chunks)
+    assert len(chunks) > 5 and all(len(c.text) <= 300 for c in chunks)
 
 
 # ---- 3·4단계: generate (생성기는 가짜로 바꾼다. 실제 호출은 test_real_calls.py) ----
@@ -202,7 +202,7 @@ class FakeGenerator:
         self.report.requested, self.report.produced = size, min(size, len(chunks))
         self.report.skip("sample: ValueError: broken json")
         return [
-            GoldenCandidate(make_id("ragas", i + 1), f"질문 {i}?", "답.", [c.page_content], [Source(c.metadata["chunk_id"], c.metadata["source"], c.metadata.get("page"))], "t", "ko", "ragas", self.settings.llm.model)
+            GoldenCandidate(make_id("ragas", i + 1), f"질문 {i}?", "답.", [c.text], [Source(c.chunk_id, c.source, c.page)], "t", "ko", "ragas", self.settings.llm.model)
             for i, c in enumerate(chunks[:size])
         ]
 
