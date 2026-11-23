@@ -4,7 +4,7 @@ import re
 
 from langchain_core.documents import Document
 
-from golden_set.loaders.base import LoadError, UnsupportedError, make_doc
+from golden_set.loading.loaders.base import LoadError, UnsupportedError, make_doc
 
 # 본문이 아닌 그룹. 글꼴표, 색상표, 스타일, 문서 정보, 그림, 머리글과 바닥글이다.
 _SKIP_DESTINATIONS = frozenset(

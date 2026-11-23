@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from golden_set.loaders import UnsupportedError
-from golden_set.registry import get_loader
+from golden_set.loading.loaders import UnsupportedError
+from golden_set.loading.registry import get_loader
 
 
 def test_get_loader_default_by_extension() -> None:
@@ -29,8 +29,8 @@ def test_get_loader_unsupported_extension(name: str) -> None:
 # ---- 2단계: load_dir ----
 
 from conftest import KO_TEXT, make_docx, make_pdf, make_pptx
-from golden_set.loaders import LoadError
-from golden_set.registry import Failure, load_dir
+from golden_set.loading.loaders import LoadError
+from golden_set.loading.registry import Failure, load_dir
 
 
 @pytest.mark.parametrize(
@@ -75,7 +75,7 @@ def test_load_dir_not_a_directory(tmp_path: Path) -> None:
 
 # ---- 4단계: 대안 로더 등록 ----
 
-from golden_set.registry import loaders_for
+from golden_set.loading.registry import loaders_for
 
 
 def test_alt_loaders_registered_after_default() -> None:

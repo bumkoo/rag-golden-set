@@ -2,7 +2,7 @@
 
 from langchain_core.documents import Document
 
-from golden_set.loaders.base import LoadError, make_doc
+from golden_set.loading.loaders.base import LoadError, make_doc
 
 
 class PyMuPDFLoader:

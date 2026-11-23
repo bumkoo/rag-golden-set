@@ -9,9 +9,9 @@ from pathlib import Path
 
 from langchain_core.documents import Document
 
-from golden_set.loaders.base import LoadError, UnsupportedError
-from golden_set.registry import get_loader, list_files, load_dir, loaders_for
-from golden_set.validate import FileReport, validate_docs
+from golden_set.loading.loaders.base import LoadError, UnsupportedError
+from golden_set.loading.registry import get_loader, list_files, load_dir, loaders_for
+from golden_set.loading.validation import FileReport, validate_docs
 
 SAMPLE_CHARS = 300
 CSV_COLUMNS = [

@@ -5,12 +5,12 @@ from pathlib import Path
 
 from langchain_core.documents import Document
 
-from golden_set.loaders.base import LoadError, Loader, UnsupportedError
-from golden_set.loaders.doc import RtfDocLoader
-from golden_set.loaders.docx import Docx2txtLoader, PythonDocxLoader
-from golden_set.loaders.pdf import PdfplumberLoader, PyMuPDFLoader
-from golden_set.loaders.pptx import PythonPptxLoader, UnstructuredPptxLoader
-from golden_set.loaders.txt import TxtLoader
+from golden_set.loading.loaders.base import LoadError, Loader, UnsupportedError
+from golden_set.loading.loaders.doc import RtfDocLoader
+from golden_set.loading.loaders.docx import Docx2txtLoader, PythonDocxLoader
+from golden_set.loading.loaders.pdf import PdfplumberLoader, PyMuPDFLoader
+from golden_set.loading.loaders.pptx import PythonPptxLoader, UnstructuredPptxLoader
+from golden_set.loading.loaders.txt import TxtLoader
 
 # 확장자마다 로더 목록. 맨 앞이 기본 로더, 나머지는 비교용 대안이다.
 _LOADERS: dict[str, list[Loader]] = {

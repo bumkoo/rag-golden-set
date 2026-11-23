@@ -2,7 +2,7 @@
 
 from langchain_core.documents import Document
 
-from golden_set.loaders.base import LoadError, make_doc
+from golden_set.loading.loaders.base import LoadError, make_doc
 
 UTF16_BOMS = (b"\xff\xfe", b"\xfe\xff")
 ENCODINGS = ("utf-8-sig", "cp949")  # utf-8-sig는 BOM이 있으면 떼고, 없으면 utf-8과 같다
