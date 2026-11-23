@@ -7,9 +7,9 @@ from langchain_core.documents import Document
 
 from golden_set.domain.chunk import make_chunk_id
 from golden_set.domain.store import read_chunks, write_chunks
-from golden_set.prepare import ChunkSettings, CleanSettings, chunk_docs, clean_docs
-from golden_set.prepare.chunk import chunk_text
-from golden_set.prepare.clean import line_key
+from golden_set.chunking import ChunkSettings, CleanSettings, chunk_docs, clean_docs
+from golden_set.chunking.chunker import chunk_text
+from golden_set.chunking.cleaning import line_key
 
 HEADER = "법제처  국가법령정보센터"
 FOOTER = "형법 - 3 -"
@@ -126,7 +126,7 @@ def test_cuts_at_sentence_boundary_not_mid_sentence() -> None:
 
 def test_fullwidth_sentence_end_and_newline_are_boundaries() -> None:
     text = "첫 문장이다。둘째 문장이다！\n셋째 문장이다？ " + "가" * 50
-    from golden_set.prepare.chunk import split_units
+    from golden_set.chunking.chunker import split_units
 
     assert [body for _, body in split_units(text, ChunkSettings(size=30, overlap=0, min_chars=1))] == [
         "첫 문장이다。",

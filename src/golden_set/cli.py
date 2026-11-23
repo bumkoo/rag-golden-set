@@ -150,7 +150,7 @@ def cmd_prepare(args: argparse.Namespace) -> int:
     from collections import Counter
 
     from golden_set.domain.store import write_chunks
-    from golden_set.prepare import ChunkSettings, CleanSettings, chunk_docs, clean_docs
+    from golden_set.chunking import ChunkSettings, CleanSettings, chunk_docs, clean_docs
 
     try:
         docs, failures = load_dir(args.folder)
