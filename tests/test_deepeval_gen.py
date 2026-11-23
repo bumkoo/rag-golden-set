@@ -1,6 +1,7 @@
 """DeepEval 생성기: 결과 변환은 실제 Golden 객체로, 실패 처리는 프롬프트를 읽고 답하는 가짜 LLM으로 검사한다. 서버는 쓰지 않는다."""
 
 import json
+import re
 
 import pytest
 from conftest import choice, completion, fake_chat
@@ -178,6 +179,26 @@ def test_generate_skips_failed_context_and_reports() -> None:
     first_prompt = fake.calls[0]["messages"][0]["content"]
     assert "Korean" in first_prompt  # StylingConfig의 input_format이 프롬프트에 들어간다
     assert all(kw["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}} for kw in fake.calls)
+
+
+def test_stages_arrive_in_order_with_summaries(capfd) -> None:
+    from golden_set.generation.progress import DEEPEVAL_STAGES, ListReporter
+
+    chat, _ = fake_chat(responder)
+    rep = ListReporter()
+    chunks = [chunk(t, i) for i, t in enumerate(KO[:2])] + [chunk("이 청크는 실패해야 한다.", 0, "fail.pdf")]
+    gen = DeepEvalGenerator(LLMSettings(llm=chat.endpoint, concurrency=2), chat=chat, reporter=rep, context_chunks=2, language="ko")
+    cands = gen.generate(chunks, size=4)
+
+    assert rep.stages == [(1, 2, DEEPEVAL_STAGES[0], None), (2, 2, DEEPEVAL_STAGES[1], 2)]
+    assert [e[0] for e in rep.events if e[0] != "advanced"] == ["started", "finished", "started", "finished"]
+    assert rep.advanced_in("질문 생성") == 2  # context 하나에 한 칸, 실패한 context도 센다
+    contexts, questions = rep.summaries
+    assert contexts == "2개 중 2개 선택  context당 후보 2개  파일별: a.pdf 1, fail.pdf 1"
+    found = re.fullmatch(r"1/2 context  후보 2개  \d+초  LLM (\d+)회\(요청 실패 1\)  실패 1", questions)
+    assert found and int(found.group(1)) == chat.log.requests and len(cands) == 2
+    captured = capfd.readouterr()
+    assert captured.out == "" and captured.err == ""  # deepeval의 rich 막대는 화면에 그리지 않는다
 
 
 def test_generator_errors_without_chunks_and_language_styling() -> None:

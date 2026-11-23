@@ -191,7 +191,7 @@ def test_prepare_chunk_options(tmp_path: Path) -> None:
 class FakeGenerator:
     name = "fake"
 
-    def __init__(self, settings, report=None, **options):
+    def __init__(self, settings, report=None, reporter=None, **options):
         from golden_set.generation import GenerateReport
 
         self.settings, self.options, self.report = settings, options, report or GenerateReport("fake")
@@ -221,9 +221,9 @@ def test_generate_writes_candidates_and_report(tmp_path: Path, capsys, monkeypat
     _env(monkeypatch)
     captured: dict = {}
 
-    def fake_get_generator(name, settings, report=None, **options):
-        captured.update(name=name, settings=settings, options=options)
-        return FakeGenerator(settings, report, **options)
+    def fake_get_generator(name, settings, report=None, reporter=None, **options):
+        captured.update(name=name, settings=settings, options=options, reporter=reporter)
+        return FakeGenerator(settings, report, reporter, **options)
 
     monkeypatch.setattr(base, "get_generator", fake_get_generator)
     root = tmp_path / "docs"

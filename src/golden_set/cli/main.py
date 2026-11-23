@@ -49,6 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--language", default="auto", choices=["auto", "ko", "en"], help="질문 언어. auto는 청크의 한글 비율로 정한다")
     g.add_argument("--no-adapt-prompts", action="store_true", help="ragas: 프롬프트 예시 번역(adapt_prompts)을 하지 않는다")
     g.add_argument("--context-chunks", type=int, default=3, choices=[1, 2, 3], help="deepeval: context 하나에 넣는 이웃 청크 수 (기본 3)")
+    g.add_argument("--log-file", metavar="generate.log", help="단계 요약과 마지막 리포트를 이 파일에도 쓴다 (본문, 서버 주소, 키는 쓰지 않는다)")
     add_llm_options(g)
     g.set_defaults(func=cmd_generate)
 

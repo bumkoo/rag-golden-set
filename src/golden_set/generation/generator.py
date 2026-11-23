@@ -8,6 +8,7 @@ from langchain_core.documents import Document
 
 from golden_set.domain.candidate import GoldenCandidate
 from golden_set.generation.llm.client import CallLog
+from golden_set.generation.progress import ProgressReporter
 
 GENERATOR_NAMES = ("ragas", "deepeval")
 
@@ -36,6 +37,7 @@ class GenerateReport:
     notes: list[str] = field(default_factory=list)  # 경고, 적용한 옵션 등
     llm: CallLog = field(default_factory=CallLog)
     embed: CallLog = field(default_factory=CallLog)
+    unmatched: int = 0  # 근거 본문을 청크와 맞추지 못한 후보 수 (단계 요약에 쓴다)
 
     def skip(self, reason: str) -> None:
         self.skipped.append(reason[:300])
@@ -55,18 +57,18 @@ class GenerateReport:
         return "\n".join(lines)
 
 
-def get_generator(name: str, settings, report: GenerateReport | None = None, **options) -> Generator:
-    """이름으로 생성기를 만든다. 해당 패키지가 없으면 GenerateError."""
+def get_generator(name: str, settings, report: GenerateReport | None = None, reporter: ProgressReporter | None = None, **options) -> Generator:
+    """이름으로 생성기를 만든다. 해당 패키지가 없으면 GenerateError. reporter를 안 주면 생성기가 화면용을 쓴다."""
     if name == "ragas":
         try:
             from golden_set.generation.ragas.generator import RagasGenerator
         except ImportError as e:
             raise GenerateError(f"ragas is not installed (pip install -e '.[generate]'): {e}") from e
-        return RagasGenerator(settings, report=report, **options)
+        return RagasGenerator(settings, report=report, reporter=reporter, **options)
     if name == "deepeval":
         try:
             from golden_set.generation.deepeval.generator import DeepEvalGenerator
         except ImportError as e:
             raise GenerateError(f"deepeval is not installed (pip install -e '.[generate]'): {e}") from e
-        return DeepEvalGenerator(settings, report=report, **options)
+        return DeepEvalGenerator(settings, report=report, reporter=reporter, **options)
     raise GenerateError(f"unknown generator {name!r} (available: {', '.join(GENERATOR_NAMES)})")

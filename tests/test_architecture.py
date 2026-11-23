@@ -31,7 +31,7 @@ EXTERNAL_ALLOWED: dict[str, set[str] | None] = {
     "domain": {"langchain_core"},  # 3단계(도메인에서 LangChain 떼기) 뒤에는 표준 라이브러리만
     "loading": {"langchain_core"} | LOADER_LIBRARIES,
     "chunking": {"langchain_core"},
-    "generation": {"langchain_core", "openai", "ragas", "deepeval", "rich"},  # rich: deepeval 진행 막대. 2단계에서 없앤다
+    "generation": {"langchain_core", "openai", "ragas", "deepeval", "rich"},  # rich: deepeval이 진행을 적을 Progress 객체를 받는다
     "evaluation": set(),
     "cli": None,
     "": set(),
