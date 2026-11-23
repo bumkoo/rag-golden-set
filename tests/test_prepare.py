@@ -5,8 +5,10 @@ from pathlib import Path
 import pytest
 from langchain_core.documents import Document
 
-from golden_set.prepare import ChunkSettings, CleanSettings, chunk_docs, clean_docs, read_chunks, write_chunks
-from golden_set.prepare.chunk import chunk_text, make_chunk_id
+from golden_set.domain.chunk import make_chunk_id
+from golden_set.domain.store import read_chunks, write_chunks
+from golden_set.prepare import ChunkSettings, CleanSettings, chunk_docs, clean_docs
+from golden_set.prepare.chunk import chunk_text
 from golden_set.prepare.clean import line_key
 
 HEADER = "법제처  국가법령정보센터"

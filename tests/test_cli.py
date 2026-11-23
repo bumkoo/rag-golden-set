@@ -112,7 +112,7 @@ def test_compare_unsupported_or_missing_exit_2(tmp_path: Path) -> None:
 
 
 def test_prepare_writes_chunks_and_reports_removed_headers(tmp_path: Path, capsys) -> None:
-    from golden_set.prepare import read_chunks
+    from golden_set.domain.store import read_chunks
 
     root = tmp_path / "docs"
     root.mkdir()
@@ -139,7 +139,7 @@ def test_prepare_writes_chunks_and_reports_removed_headers(tmp_path: Path, capsy
 
 
 def test_prepare_on_fixture_dir_removes_header_pdf_lines(tmp_path: Path, capsys) -> None:
-    from golden_set.prepare import read_chunks
+    from golden_set.domain.store import read_chunks
 
     root = build_fixture_dir(tmp_path / "fx")
     out = tmp_path / "chunks.jsonl"
@@ -173,7 +173,7 @@ def test_prepare_exit_2_when_no_chunks_or_bad_args(tmp_path: Path) -> None:
 
 
 def test_prepare_chunk_options(tmp_path: Path) -> None:
-    from golden_set.prepare import read_chunks
+    from golden_set.domain.store import read_chunks
 
     root = tmp_path / "docs"
     root.mkdir()
@@ -196,7 +196,7 @@ class FakeGenerator:
         self.settings, self.options, self.report = settings, options, report or GenerateReport("fake")
 
     def generate(self, chunks, size):
-        from golden_set.candidates import GoldenCandidate, Source, make_id
+        from golden_set.domain.candidate import GoldenCandidate, Source, make_id
 
         self.report.requested, self.report.produced = size, min(size, len(chunks))
         self.report.skip("sample: ValueError: broken json")
@@ -215,7 +215,7 @@ def _env(monkeypatch) -> None:
 
 def test_generate_writes_candidates_and_report(tmp_path: Path, capsys, monkeypatch) -> None:
     import golden_set.generators as base  # cli는 패키지에서 get_generator를 가져온다
-    from golden_set.candidates import read_candidates
+    from golden_set.domain.store import read_candidates
 
     _env(monkeypatch)
     captured: dict = {}

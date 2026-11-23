@@ -5,14 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from golden_set.candidates import (
-    CandidateError,
-    GoldenCandidate,
-    Source,
-    make_id,
-    read_candidates,
-    write_candidates,
-)
+from golden_set.domain.candidate import CandidateError, GoldenCandidate, Source, make_id
+from golden_set.domain.store import read_candidates, write_candidates
 
 
 def candidate(n: int = 1, **override) -> GoldenCandidate:

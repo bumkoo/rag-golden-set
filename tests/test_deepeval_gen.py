@@ -7,7 +7,7 @@ from conftest import choice, completion, fake_chat
 from deepeval.dataset.golden import Golden
 from langchain_core.documents import Document
 
-from golden_set.candidates import Source
+from golden_set.domain.candidate import Source
 from golden_set.generators import GenerateReport, Generator
 from golden_set.generators.base import extract_json
 from golden_set.generators.deepeval_gen import (

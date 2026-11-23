@@ -18,8 +18,9 @@ from deepeval.models import DeepEvalBaseLLM
 from deepeval.synthesizer.config import EvolutionConfig, FiltrationConfig, StylingConfig
 from langchain_core.documents import Document
 
-from golden_set.candidates import GoldenCandidate, make_id
-from golden_set.generators.base import ChunkIndex, GenerateError, GenerateReport, detect_language, extract_json, sources_for
+from golden_set.domain.candidate import GoldenCandidate, make_id
+from golden_set.domain.language import detect_language
+from golden_set.generators.base import ChunkIndex, GenerateError, GenerateReport, extract_json, sources_for
 from golden_set.llm import ChatClient, LLMError, LLMSettings
 
 # StylingConfig로 질문·정답 언어를 근거 본문과 맞춘다. 템플릿 자체는 언어를 지정하지 않는다 (deepeval 4.3.4).

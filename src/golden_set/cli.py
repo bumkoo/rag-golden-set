@@ -149,7 +149,8 @@ def cmd_prepare(args: argparse.Namespace) -> int:
     """폴더를 읽고 반복 머리글·바닥글을 지운 뒤 청크로 나눠 chunks.jsonl로 저장한다."""
     from collections import Counter
 
-    from golden_set.prepare import ChunkSettings, CleanSettings, chunk_docs, clean_docs, write_chunks
+    from golden_set.domain.store import write_chunks
+    from golden_set.prepare import ChunkSettings, CleanSettings, chunk_docs, clean_docs
 
     try:
         docs, failures = load_dir(args.folder)
@@ -230,10 +231,9 @@ def cmd_ping(args: argparse.Namespace) -> int:
 
 def cmd_generate(args: argparse.Namespace) -> int:
     """chunks.jsonl로 생성기 하나를 돌려 candidates.jsonl을 만든다."""
-    from golden_set.candidates import write_candidates
+    from golden_set.domain.store import read_chunks, write_candidates
     from golden_set.generators import GenerateError, GenerateReport, get_generator
     from golden_set.llm import EMBED_ENV, LLM_ENV, ConfigError
-    from golden_set.prepare import read_chunks
 
     try:
         settings = _llm_settings(args, need_embed=args.generator == "ragas")
@@ -266,9 +266,9 @@ def cmd_generate(args: argparse.Namespace) -> int:
 
 def cmd_check(args: argparse.Namespace) -> int:
     """candidates.jsonl을 LLM 없이 검증하고 생성기별 요약을 낸다. 출처 확인에 chunks.jsonl이 필요하다."""
-    from golden_set.candidates import CandidateError, read_candidates
     from golden_set.check import check_candidates, format_summary, print_table, summarize, write_csv
-    from golden_set.prepare import read_chunks
+    from golden_set.domain.candidate import CandidateError
+    from golden_set.domain.store import read_candidates, read_chunks
 
     chunks_path = args.chunks
     if chunks_path is None:  # 후보 파일 옆, 그다음 현재 폴더의 chunks.jsonl

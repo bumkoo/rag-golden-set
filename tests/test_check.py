@@ -5,7 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from golden_set.candidates import GoldenCandidate, Source, make_id, write_candidates
+from golden_set.domain.candidate import GoldenCandidate, Source, make_id
+from golden_set.domain.store import write_candidates
 from golden_set.check import CHECK_NAMES, CheckThresholds, check_candidates, check_one, duplicate_key, format_summary, summarize, write_csv
 
 KO_CTX = "강호의 규율은 무공이 아니라 신의에서 나온다고 장문인은 말했다. 제자는 그 뜻을 오래도록 헤아리지 못했다."
@@ -191,7 +192,7 @@ def test_csv_columns_and_encoding(tmp_path: Path) -> None:
 def write_chunks_file(path: Path) -> None:
     from langchain_core.documents import Document
 
-    from golden_set.prepare import write_chunks
+    from golden_set.domain.store import write_chunks
 
     docs = [Document(page_content=KO_CTX, metadata={"source": "dir/a.pdf", "file_type": "pdf", "loader": "t", "page": 1, "chunk_id": "a.pdf:p1:0:aaaa", "chunk_index": 0})]
     write_chunks(docs, str(path))

@@ -1,6 +1,5 @@
-"""공통 스키마 GoldenCandidate와 JSONL 읽기/쓰기. 두 생성기의 출력은 전부 이 꼴이다."""
+"""공통 스키마 GoldenCandidate. 두 생성기의 출력은 전부 이 꼴이다. 읽기·쓰기는 domain.store에 있다."""
 
-import json
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timezone
 
@@ -73,28 +72,3 @@ def now_iso() -> str:
 def make_id(generator: str, number: int) -> str:
     """후보 id: 생성기 이름 + 네 자리 일련번호."""
     return f"{generator}-{number:04d}"
-
-
-def write_candidates(candidates: list[GoldenCandidate], path: str, append: bool = False) -> None:
-    """후보를 JSONL로 저장한다. 한글은 그대로 쓴다(ensure_ascii=False)."""
-    with open(path, "a" if append else "w", encoding="utf-8") as f:
-        for c in candidates:
-            f.write(json.dumps(c.to_dict(), ensure_ascii=False) + "\n")
-
-
-def read_candidates(path: str) -> list[GoldenCandidate]:
-    """candidates.jsonl을 읽는다. 깨진 줄은 줄 번호와 함께 CandidateError를 낸다."""
-    out: list[GoldenCandidate] = []
-    with open(path, encoding="utf-8") as f:
-        for n, line in enumerate(f, start=1):
-            if not line.strip():
-                continue
-            try:
-                row = json.loads(line)
-            except json.JSONDecodeError as e:
-                raise CandidateError(f"{path}:{n}: not json: {e}") from e
-            try:
-                out.append(GoldenCandidate.from_dict(row))
-            except CandidateError as e:
-                raise CandidateError(f"{path}:{n}: {e}") from e
-    return out

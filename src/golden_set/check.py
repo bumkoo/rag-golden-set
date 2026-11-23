@@ -10,8 +10,8 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from golden_set.candidates import GoldenCandidate
-from golden_set.generators.base import KO_HANGUL_RATIO, detect_language
+from golden_set.domain.candidate import GoldenCandidate
+from golden_set.domain.language import KO_HANGUL_RATIO, detect_language
 
 CHECK_NAMES = ("required", "sources", "question_length", "language", "duplicate", "residue", "deictic")
 

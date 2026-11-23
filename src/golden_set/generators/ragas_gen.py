@@ -26,8 +26,9 @@ from ragas.testset.transforms.extractors import EmbeddingExtractor
 from ragas.testset.transforms.extractors.llm_based import NERExtractor, SummaryExtractor, ThemesExtractor
 from ragas.testset.transforms.relationship_builders import CosineSimilarityBuilder, OverlapScoreBuilder
 
-from golden_set.candidates import GoldenCandidate, make_id
-from golden_set.generators.base import ChunkIndex, GenerateError, GenerateReport, detect_language, sources_for
+from golden_set.domain.candidate import GoldenCandidate, make_id
+from golden_set.domain.language import detect_language
+from golden_set.generators.base import ChunkIndex, GenerateError, GenerateReport, sources_for
 from golden_set.llm import ChatClient, EmbedClient, LLMSettings
 
 # 질문 생성 프롬프트의 llm_context 로 들어간다 (QueryCondition.llm_context). 언어를 근거 본문과 맞추는 지시다.

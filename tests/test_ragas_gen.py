@@ -11,7 +11,7 @@ from ragas.testset.graph import KnowledgeGraph, Node, NodeType
 from ragas.testset.persona import Persona
 from ragas.testset.synthesizers.testset_schema import TestsetSample as RagasTestsetSample  # 이름에 Test가 있어 pytest가 수집하려 든다
 
-from golden_set.candidates import Source
+from golden_set.domain.candidate import Source
 from golden_set.generators import GenerateReport
 from golden_set.generators.ragas_gen import (
     FAILED_SAMPLE_STYLE,

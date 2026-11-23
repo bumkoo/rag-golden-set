@@ -3,9 +3,10 @@
 import pytest
 from langchain_core.documents import Document
 
-from golden_set.candidates import Source
+from golden_set.domain.candidate import Source
+from golden_set.domain.language import detect_language
 from golden_set.generators import GenerateError, GenerateReport, Generator, get_generator
-from golden_set.generators.base import ChunkIndex, detect_language, sources_for
+from golden_set.generators.base import ChunkIndex, sources_for
 from golden_set.llm import Endpoint, LLMSettings
 
 
