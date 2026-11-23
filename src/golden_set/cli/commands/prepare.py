@@ -3,6 +3,7 @@
 import argparse
 import sys
 
+from golden_set.cli.project import for_writing, project_of
 from golden_set.loading.loaders.base import LoadError
 from golden_set.loading.registry import load_dir
 
@@ -51,6 +52,8 @@ def cmd_prepare(args: argparse.Namespace) -> int:
     if not chunks:
         print("error: no chunks", file=sys.stderr)
         return 2
-    write_chunks(chunks, args.out)
-    print(f"saved: {args.out}")
+    project = project_of(args)
+    out = args.out or (for_writing(project.chunks) if project else "chunks.jsonl")
+    write_chunks(chunks, out)
+    print(f"saved: {out}")
     return 1 if errors else 0

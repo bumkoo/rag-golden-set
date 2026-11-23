@@ -5,6 +5,7 @@ import sys
 
 from golden_set.cli.commands.check import cmd_check
 from golden_set.cli.commands.compare import cmd_compare
+from golden_set.cli.commands.export import cmd_export
 from golden_set.cli.commands.generate import cmd_generate
 from golden_set.cli.commands.ping import cmd_ping
 from golden_set.cli.commands.prepare import cmd_prepare
@@ -20,6 +21,7 @@ def build_parser() -> argparse.ArgumentParser:
     v = sub.add_parser("validate", help="폴더의 파일을 모두 읽어 파일별 지표를 출력한다")
     v.add_argument("folder")
     v.add_argument("--out", metavar="report.csv", help="표를 CSV로 저장한다")
+    v.add_argument("--project", metavar="폴더", help="프로젝트 폴더. 산출물을 단계별 하위 폴더에 둔다: 1-validate/validate.csv")
     v.add_argument("--samples", type=int, default=0, metavar="N", help="파일마다 본문 앞 300자를 N개 출력한다")
     v.set_defaults(func=cmd_validate)
 
@@ -30,7 +32,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("prepare", help="폴더를 읽고 머리글·바닥글을 지운 뒤 청크로 나눠 JSONL로 저장한다")
     p.add_argument("folder")
-    p.add_argument("--out", default="chunks.jsonl", metavar="chunks.jsonl", help="청크 JSONL 저장 경로")
+    p.add_argument("--out", metavar="chunks.jsonl", help="청크 JSONL 저장 경로 (기본 chunks.jsonl)")
+    p.add_argument("--project", metavar="폴더", help="프로젝트 폴더. 산출물을 단계별 하위 폴더에 둔다: 2-prepare/chunks.jsonl")
     p.add_argument("--chunk-size", type=int, default=1200, metavar="N", help="청크 최대 글자 수 (기본 1200)")
     p.add_argument("--overlap", type=int, default=150, metavar="N", help="청크 사이 겹침 글자 수 (기본 150)")
     p.add_argument("--min-chars", type=int, default=100, metavar="N", help="공백 제거 후 이보다 짧은 청크는 버린다 (기본 100)")
@@ -42,10 +45,11 @@ def build_parser() -> argparse.ArgumentParser:
     pi.set_defaults(func=cmd_ping)
 
     g = sub.add_parser("generate", help="chunks.jsonl로 골든 후보를 생성해 candidates.jsonl로 저장한다")
-    g.add_argument("chunks", metavar="chunks.jsonl")
+    g.add_argument("chunks", nargs="?", metavar="chunks.jsonl", help="--project를 주면 생략한다")
     g.add_argument("--generator", required=True, choices=["ragas", "deepeval"])
     g.add_argument("--size", type=int, default=30, metavar="N", help="만들 후보 수 (기본 30)")
-    g.add_argument("--out", default="candidates.jsonl", metavar="candidates.jsonl")
+    g.add_argument("--out", metavar="candidates.jsonl", help="후보 저장 경로 (기본 candidates.jsonl)")
+    g.add_argument("--project", metavar="폴더", help="프로젝트 폴더. 산출물을 단계별 하위 폴더에 둔다: 2-prepare/chunks.jsonl을 읽고 3-generate/<생성기>.candidates.jsonl과 .log를 쓴다")
     g.add_argument("--language", default="auto", choices=["auto", "ko", "en"], help="질문 언어. auto는 청크의 한글 비율로 정한다")
     g.add_argument("--no-adapt-prompts", action="store_true", help="ragas: 프롬프트 예시 번역(adapt_prompts)을 하지 않는다")
     g.add_argument("--context-chunks", type=int, default=3, choices=[1, 2, 3], help="deepeval: context 하나에 넣는 이웃 청크 수 (기본 3)")
@@ -54,10 +58,18 @@ def build_parser() -> argparse.ArgumentParser:
     g.set_defaults(func=cmd_generate)
 
     k = sub.add_parser("check", help="candidates.jsonl을 LLM 없이 검증하고 생성기별 요약을 낸다")
-    k.add_argument("candidates", metavar="candidates.jsonl")
+    k.add_argument("candidates", nargs="?", metavar="candidates.jsonl", help="--project를 주면 생략한다")
     k.add_argument("--chunks", metavar="chunks.jsonl", help="출처 대조용. 없으면 후보 파일 옆이나 현재 폴더의 chunks.jsonl을 쓴다")
     k.add_argument("--out", metavar="report.csv", help="후보별 결과를 CSV로 저장한다")
+    k.add_argument("--project", metavar="폴더", help="프로젝트 폴더. 산출물을 단계별 하위 폴더에 둔다: 3-generate/의 후보 파일을 모두 읽고 4-check/check.csv를 쓴다")
     k.set_defaults(func=cmd_check)
+
+    e = sub.add_parser("export", help="candidates.jsonl을 바깥 시스템의 데이터셋 형식으로 바꿔 저장한다")
+    e.add_argument("candidates", nargs="?", metavar="candidates.jsonl", help="--project를 주면 생략한다")
+    e.add_argument("--format", required=True, choices=["awx1"], help="awx1: [{id, query, expected_response}] JSON 배열")
+    e.add_argument("--out", metavar="golden.awx1.json")
+    e.add_argument("--project", metavar="폴더", help="프로젝트 폴더. 산출물을 단계별 하위 폴더에 둔다: 검수본(4-check/reviewed.candidates.jsonl)이 있으면 그것을, 없으면 3-generate/의 후보 전부를 5-export/golden.<형식>.json으로 쓴다")
+    e.set_defaults(func=cmd_export)
     return parser
 
 

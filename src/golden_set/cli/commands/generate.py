@@ -4,6 +4,7 @@ import argparse
 import sys
 
 from golden_set.cli.llm_options import llm_settings
+from golden_set.cli.project import for_writing, project_of
 
 
 def cmd_generate(args: argparse.Namespace) -> int:
@@ -18,8 +19,15 @@ def cmd_generate(args: argparse.Namespace) -> int:
     except ConfigError as e:
         print(f"error: {e}  (환경 변수: {', '.join(LLM_ENV)}, {', '.join(EMBED_ENV)})", file=sys.stderr)
         return 2
+    project = project_of(args)
+    chunks_path = args.chunks or (str(project.chunks) if project else None)
+    if chunks_path is None:
+        print("error: chunks.jsonl 경로나 --project를 준다", file=sys.stderr)
+        return 2
+    out = args.out or (for_writing(project.candidates(args.generator)) if project else "candidates.jsonl")
+    log_path = args.log_file or (for_writing(project.generate_log(args.generator)) if project else None)
     try:
-        chunks = read_chunks(args.chunks)
+        chunks = read_chunks(chunks_path)
     except (OSError, ValueError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
@@ -29,9 +37,9 @@ def cmd_generate(args: argparse.Namespace) -> int:
     else:
         options["context_chunks"] = args.context_chunks
     log = None
-    if args.log_file:
+    if log_path:
         try:
-            log = open(args.log_file, "w", encoding="utf-8")
+            log = open(log_path, "w", encoding="utf-8")
         except OSError as e:
             print(f"error: {e}", file=sys.stderr)
             return 2
@@ -47,8 +55,8 @@ def cmd_generate(args: argparse.Namespace) -> int:
             print(f"error: {e}", file=sys.stderr)
             return 1
         reporter.line(report.summary())
-        write_candidates(candidates, args.out)
-        reporter.line(f"saved: {args.out}  ({len(candidates)} candidates, chunks={len(chunks)})")
+        write_candidates(candidates, out)
+        reporter.line(f"saved: {out}  ({len(candidates)} candidates, chunks={len(chunks)})")
         return 0 if candidates else 1
     finally:
         if log is not None:

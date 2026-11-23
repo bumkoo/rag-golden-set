@@ -12,7 +12,7 @@ from pathlib import Path
 SRC = Path(__file__).resolve().parents[1] / "src" / "golden_set"
 ROOT_PACKAGE = "golden_set"
 
-CONTEXTS = ("loading", "chunking", "generation", "evaluation")
+CONTEXTS = ("loading", "chunking", "generation", "evaluation", "exporting")
 
 # 패키지 → import해도 되는 golden_set 내부 패키지. 자기 자신은 언제나 된다.
 INTERNAL_ALLOWED: dict[str, set[str]] = {
@@ -21,7 +21,8 @@ INTERNAL_ALLOWED: dict[str, set[str]] = {
     "chunking": {"domain"},
     "generation": {"domain"},
     "evaluation": {"domain"},
-    "cli": {"domain", "loading", "chunking", "generation", "evaluation"},
+    "exporting": {"domain"},
+    "cli": {"domain", "loading", "chunking", "generation", "evaluation", "exporting"},
     "": {"loading"},  # golden_set/__init__.py: load_path, load_dir 재수출
 }
 
@@ -33,6 +34,7 @@ EXTERNAL_ALLOWED: dict[str, set[str] | None] = {
     "chunking": {"langchain_core"},
     "generation": {"langchain_core", "openai", "ragas", "deepeval", "rich"},  # rich: deepeval이 진행을 적을 Progress 객체를 받는다
     "evaluation": set(),
+    "exporting": set(),
     "cli": None,
     "": set(),
 }

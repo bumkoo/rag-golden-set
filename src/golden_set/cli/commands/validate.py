@@ -9,6 +9,7 @@ from pathlib import Path
 
 from langchain_core.documents import Document
 
+from golden_set.cli.project import for_writing, project_of
 from golden_set.loading.loaders.base import LoadError, UnsupportedError
 from golden_set.loading.registry import get_loader, list_files
 from golden_set.loading.validation import FileReport, validate_docs
@@ -123,7 +124,9 @@ def cmd_validate(args: argparse.Namespace) -> int:
     print("\n" + "  ".join(f"{k}={v}" for k, v in counts.items()))
     if args.samples:
         print_samples(rows, args.samples)
-    if args.out:
-        write_csv(rows, args.out)
-        print(f"\nsaved: {args.out}")
+    project = project_of(args)
+    out = args.out or (for_writing(project.validate_csv) if project else None)
+    if out:
+        write_csv(rows, out)
+        print(f"\nsaved: {out}")
     return 1 if counts["fail"] or counts["error"] else 0
