@@ -43,6 +43,7 @@ class LLMSettings:
     temperature: float = 0.2  # 호출자가 온도를 주지 않을 때
     disable_thinking: bool = True  # Qwen3 계열: chat_template_kwargs.enable_thinking=false 를 보낸다
     json_mode: bool = True  # JSON 응답을 기대하는 요청에 response_format=json_object 를 붙인다
+    reasoning_effort: str | None = None  # Ollama처럼 chat_template_kwargs를 무시하는 서버용. "none"이면 추론을 끈다
 
 
 def endpoint_from_env(names: tuple[str, str, str], env: dict[str, str] | None = None) -> Endpoint | None:
@@ -217,6 +218,8 @@ class ChatClient:
             kwargs["response_format"] = {"type": "json_object"}
         if self.settings.disable_thinking:
             kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
+        if self.settings.reasoning_effort:
+            kwargs["reasoning_effort"] = self.settings.reasoning_effort
         return kwargs
 
     def _parse(self, response) -> list[Completion]:

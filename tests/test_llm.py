@@ -93,6 +93,17 @@ def test_request_kwargs_options_off() -> None:
     assert kw["temperature"] == 0.7 and kw["max_tokens"] == 99 and kw["n"] == 2
 
 
+def test_reasoning_effort_is_sent_only_when_set() -> None:
+    """Ollama는 chat_template_kwargs를 무시한다. reasoning_effort를 줘야 추론이 꺼진다."""
+    c, fake = fake_chat("x", "y", reasoning_effort="none")
+    c.complete([("user", "hi")])
+    assert fake.calls[0]["reasoning_effort"] == "none"
+    assert fake.calls[0]["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
+    default, fake2 = fake_chat("x")
+    default.complete([("user", "hi")])
+    assert "reasoning_effort" not in fake2.calls[0]
+
+
 def test_langchain_messages_are_converted() -> None:
     from langchain_core.messages import HumanMessage, SystemMessage
 

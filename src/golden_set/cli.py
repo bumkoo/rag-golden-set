@@ -205,6 +205,7 @@ def _llm_settings(args: argparse.Namespace, need_embed: bool):
         temperature=args.temperature,
         disable_thinking=not args.keep_thinking,
         json_mode=not args.no_json_mode,
+        reasoning_effort=args.reasoning_effort,
     )
 
 
@@ -301,6 +302,7 @@ def _add_llm_options(p: argparse.ArgumentParser) -> None:
     g.add_argument("--max-tokens", type=int, default=4096, metavar="N", help="응답 최대 토큰 (기본 4096)")
     g.add_argument("--temperature", type=float, default=0.2, help="도구가 온도를 주지 않는 요청의 온도 (기본 0.2)")
     g.add_argument("--keep-thinking", action="store_true", help="추론 끄기(chat_template_kwargs.enable_thinking=false)를 보내지 않는다")
+    g.add_argument("--reasoning-effort", default=None, metavar="LEVEL", help="reasoning_effort 값을 보낸다. Ollama는 enable_thinking을 무시하므로 none을 줘야 추론이 꺼진다")
     g.add_argument("--no-json-mode", action="store_true", help="response_format=json_object 를 붙이지 않는다 (서버가 거부할 때)")
 
 
