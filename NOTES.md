@@ -347,3 +347,179 @@
 | reports/generate.txt, reports/check.txt | **없음**. 서버에 닿지 않았다. README "명령 순서"로 만든다 |
 | reports/validate_real.txt | **없음**. `/data`가 없었다 |
 | NOTES.md 새 장 | 이 장 |
+
+## 9. 구조 개선과 단계 로그 (계획서 2026-11-23)
+
+브랜치 `claude/structure-stage-log`. 기준은 `claude/vibrant-lamport-egera2`의 `b334c5b`다.
+
+### 9.1 단계별로 한 일
+
+| 단계 | 한 일 | 커밋 |
+|---|---|---|
+| 0. 기준 확인 | `b334c5b`에서 새 브랜치, pytest 210 통과·15 건너뜀 확인 | - |
+| (앞선 동작 변경) | `--reasoning-effort` 옵션. 첫 실제 실행 때 고친 것을 구조 변경과 섞지 않으려고 따로 먼저 넣었다 (9.6) | `7bc74db` |
+| 1. 구조 변경 | 컨텍스트 하나씩 옮기고 그때마다 pytest와 커밋. 순서: domain → loading → chunking → evaluation → generation → cli | `aa89efa` `193c3eb` `88e34b7` `f50c024` `fd34a14` `3848e87` |
+| 2. 단계 로그 | `generation/progress.py`, ragas 6단계와 deepeval 2단계, `--log-file` | `3084c4c` |
+| 3. 도메인에서 LangChain 떼기 | `domain.Chunk`. 했다 (9.5) | `4e66be4` |
+| 4. 버전 상한 | `ragas>=0.4.4,<0.5`, `deepeval>=4.3.4,<4.4` | `590f451` |
+
+건너뛴 단계는 없다.
+
+1단계의 완료 조건 확인:
+- 기존 테스트의 단언과 기대값은 바꾸지 않았다. 1단계 커밋들의 `tests/` 변경은 import 줄뿐이다 (`git diff 7bc74db 3848e87 -- tests ':!tests/test_architecture.py'`의 바뀐 줄이 모두 import 문).
+- `python -m golden_set.cli --help`와 여섯 명령의 `--help` 출력이 옮기기 전(`7bc74db`)과 글자 단위로 같다. 2단계에서 `generate --help`에 `--log-file` 한 항목이 늘었다.
+- `python -m golden_set.cli ...`와 `golden-set ...` 둘 다 돈다.
+
+### 9.2 옛 경로 → 새 경로
+
+| 옛 경로 | 새 경로 | 들어 있는 것 |
+|---|---|---|
+| `candidates.py` | `domain/candidate.py` | `GoldenCandidate`, `Source`, `CandidateError`, `make_id`, `now_iso` |
+| `candidates.py` (읽기·쓰기) | `domain/store.py` | `read_candidates`, `write_candidates` |
+| `prepare/chunk.py` (읽기·쓰기) | `domain/store.py` | `read_chunks`, `write_chunks` |
+| `prepare/chunk.py` (`make_chunk_id`) | `domain/chunk.py` | `Chunk`(3단계에서 추가), `make_chunk_id` |
+| `generators/base.py` (언어) | `domain/language.py` | `detect_language`, `KO_HANGUL_RATIO` |
+| `loaders/` | `loading/loaders/` | 그대로 (base, txt, docx, pdf, pptx, doc) |
+| `registry.py` | `loading/registry.py` | 그대로 |
+| `validate.py` | `loading/validation.py` | `Thresholds`, `FileReport`, `validate_docs` |
+| `prepare/clean.py` | `chunking/cleaning.py` | `CleanSettings`, `CleanReport`, `RemovedLine`, `clean_docs`, `line_key` |
+| `prepare/chunk.py` | `chunking/chunker.py` | `ChunkSettings`, `split_units`, `chunk_text`, `chunk_docs` |
+| `generators/base.py` | `generation/generator.py` | `Generator`, `GenerateError`, `GenerateReport`, `get_generator`, `GENERATOR_NAMES` |
+| `generators/base.py` (대조) | `generation/matching.py` | `ChunkIndex`, `sources_for`, `source_from_chunk`, `normalize_text`, `extract_json` |
+| (없음) | `generation/progress.py` | `ProgressReporter`, `ConsoleReporter`, `ListReporter`, `Stages`, 단계 이름 |
+| `llm.py` (설정) | `generation/llm/settings.py` | `Endpoint`, `LLMSettings`, `ConfigError`, `endpoint_from_env`, `settings_from_env`, `LLM_ENV`, `EMBED_ENV` |
+| `llm.py` (클라이언트) | `generation/llm/client.py` | `ChatClient`, `EmbedClient`, `CallLog`, `Completion`, `LLMError`, `strip_think` |
+| `llm.py` (ping) | `generation/llm/ping.py` | `ping`, `PingResult`, `PING_PROMPT` |
+| `generators/ragas_gen.py` | `generation/ragas/adapters.py` | `ChatRagasLLM`, `ChatRagasEmbedding` |
+| | `generation/ragas/guards.py` | `GuardedTransform`, `GuardedSynthesizer`, `FAILED_SAMPLE_STYLE` |
+| | `generation/ragas/transforms.py` | `build_transforms` |
+| | `generation/ragas/generator.py` | `RagasGenerator`, `RagasOptions`, `candidates_from_ragas`, `strip_hop_prefix`, `LANGUAGE_INSTRUCTION` |
+| (없음) | `generation/ragas/stages.py` | `relation_stats`, `relation_summary`, `quiet_ragas_bars`, `SampleStages`, 이름표 |
+| `generators/deepeval_gen.py` | `generation/deepeval/adapters.py` | `ChatDeepEvalModel` |
+| | `generation/deepeval/contexts.py` | `ContextGroup`, `build_contexts`, `choose_contexts`, `MAX_GOLDENS_PER_CONTEXT` |
+| | `generation/deepeval/generator.py` | `DeepEvalGenerator`, `DeepEvalOptions`, `candidates_from_deepeval`, `STYLING` |
+| `check.py` | `evaluation/checks.py` | `CheckThresholds`, `CheckResult`, `check_one`, `check_candidates`, `duplicate_key`, `CHECK_NAMES` |
+| | `evaluation/summary.py` | `GeneratorSummary`, `summarize`, `format_summary` |
+| | `evaluation/output.py` | `print_table`, `write_csv`, `row_values`, `CSV_COLUMNS` |
+| `cli.py` | `cli/main.py` | `build_parser`, `main`, `force_utf8_output` |
+| | `cli/__main__.py` | `python -m golden_set.cli` 진입점 |
+| | `cli/llm_options.py` | `add_llm_options`, `llm_settings` |
+| | `cli/commands/{validate,compare,prepare,ping,generate,check}.py` | `cmd_<이름>`. validate에는 표 출력(`Row`, `run_one`, `print_table`, `write_csv`, `print_samples`, `CSV_COLUMNS`)도 있다 |
+
+`golden_set/__init__.py`의 재수출(`load_path`, `load_dir` 등)은 그대로다. 옛 경로를 이어 주는 모듈은 남기지 않았다. 옛 경로로 import하는 바깥 코드는 위 표대로 고쳐야 한다.
+
+### 9.3 계획서 2장과 다르게 나눈 곳
+
+| 다른 점 | 이유 |
+|---|---|
+| `cli/llm_options.py`를 따로 뒀다 | LLM 옵션 정의와 그것을 `LLMSettings`로 바꾸는 함수를 `ping`과 `generate`가 같이 쓴다. 한 명령 모듈에 두면 다른 명령이 그 모듈을 import하게 된다 |
+| 표 출력을 `cli/commands/validate.py`에 두고 `compare`가 가져다 쓴다 | 두 명령이 같은 표를 찍는다. 따로 모듈을 만들 만큼 크지 않다 |
+| `generation/ragas/stages.py`를 추가했다 | 관계 집계, 요약 줄의 이름표, ragas 자체 막대 끄기는 ragas의 그래프와 내부 이름을 알아야 한다. `progress.py`는 도구를 모르는 채로 둔다 |
+| 단계 번호·걸린 시간·요청 수 계산을 `progress.py`의 `Stages`에 뒀다 | 두 생성기가 똑같이 해야 하는 일이다. `ProgressReporter`의 메서드 세 개는 계획서 그대로다 |
+| 인자 정의(`build_parser`)는 `cli/main.py`에 한데 뒀다 | 명령 순서와 `--help` 출력을 옮기기 전과 같게 유지하기 쉽다. 명령 모듈에는 `cmd_<이름>`만 있다 |
+| 사용 통계를 끄는 환경 변수 설정을 `generation/ragas/__init__.py`, `generation/deepeval/__init__.py`로 옮겼다 | 모듈을 여러 개로 나누면서 "도구 import 전에 실행"을 보장할 자리가 패키지의 `__init__`뿐이다 |
+| `generation/llm/__init__.py`가 설정과 클라이언트의 이름을 재수출한다 (`ping`은 뺐다) | 테스트와 호출하는 쪽의 import가 짧다. `ping`은 모듈 이름과 함수 이름이 같아 재수출하면 헷갈린다 |
+
+파일 이름은 계획서 2장 그대로다.
+
+### 9.4 의존 규칙과 예외
+
+`tests/test_architecture.py`가 지키는 규칙: 컨텍스트(`loading`, `chunking`, `generation`, `evaluation`)는 서로를 import하지 않는다.
+`domain`은 표준 라이브러리만 쓴다. openai는 `generation/llm/`, ragas는 `generation/ragas/`, deepeval은 `generation/deepeval/` 안에서만 import한다.
+상대 import(`from . import`)는 금지다 (검사기가 전체 경로를 봐야 한다). 함수 안의 import도 검사한다.
+
+예외와 계획서의 표보다 조인 곳:
+- **rich**: `generation/deepeval/generator.py`가 import한다. deepeval의 `a_generate_goldens_from_contexts`가 진행을 적을 `rich.progress.Progress` 객체를 인자로 받기 때문이다 (하나를 만들어 넘기지 않으면 호출마다 만들어 동시 표시 오류가 난다). `Progress(disable=True)`로 화면에는 그리지 않는다. 규칙에는 "rich는 `generation/deepeval/` 안에서만"으로 넣었다.
+- **langchain_core**: 계획서의 표는 `generation` 전체에 허용하지만 `generation/ragas/` 안으로 좁혔다 (ragas의 `BaseRagasLLM`이 `LLMResult`, `PromptValue`를 주고받는다). 그 밖에 허용한 곳은 `loading/`, `chunking/`(입력이 로더의 `Document`다), `cli/`(`validate`가 로더 출력을 직접 다룬다)다.
+- `golden_set/__init__.py`는 `loading`만 import한다 (재수출).
+
+**의존 규칙 테스트가 잡아낸 위반**: 실제 소스에서 테스트가 실패한 적은 없다. 알려진 위반 두 가지(`check.py`가 `generators.base`의 `detect_language`를 쓰던 것, `cli`와 생성기가 `prepare`의 JSONL 읽기·쓰기를 쓰던 것)는 계획서대로 1단계 첫 커밋에서 `domain`으로 내렸고, 테스트는 그 뒤에 추가했다.
+3단계에서 규칙을 조이기 전의 소스(`3084c4c`)에 조인 규칙을 돌리면 다음 다섯 줄이 나온다. 이것을 `Chunk`로 바꿔 풀었다.
+
+```text
+domain/store.py:5: domain must not import external package 'langchain_core'
+generation/deepeval/contexts.py:6: langchain_core may be imported only under loading/, chunking/, generation/ragas/, cli/
+generation/deepeval/generator.py:10: langchain_core may be imported only under loading/, chunking/, generation/ragas/, cli/
+generation/generator.py:7: langchain_core may be imported only under loading/, chunking/, generation/ragas/, cli/
+generation/matching.py:5: langchain_core may be imported only under loading/, chunking/, generation/ragas/, cli/
+```
+
+검사기가 위반을 실제로 잡는지는 손으로 쓴 위반 사례로 테스트한다 (`test_checker_*` 6개: 컨텍스트 간 import, 함수 안의 import, 상대 import, domain의 외부 패키지, 도구의 위치, 표에 없는 패키지).
+
+### 9.5 3단계: domain.Chunk
+
+했다. `Chunk`는 `chunk_id`, `text`, `source`, `page`, `file_type`, `loader`, `extra`(그 밖의 메타데이터, 예: `chunk_index`)를 가진 frozen dataclass다.
+`chunk_docs`의 출력, `read_chunks`·`write_chunks`, 두 생성기의 입력, `ChunkIndex`가 이 타입을 쓴다. LangChain의 `Document`는 로더 출력을 다루는 곳과 `generation/ragas/`의 어댑터에만 남았다.
+
+- chunks.jsonl 형식은 그대로다. `Chunk.metadata`가 예전 metadata dict를 같은 키 순서로 돌려준다. 형법 pdf로 만든 chunks.jsonl(74줄)이 `b334c5b`의 코드로 만든 파일과 바이트 단위로 같고, 그 후보 30개에 대한 `check`의 CSV도 같다.
+- 이 단계에서는 테스트 코드도 고쳤다: 청크를 만드는 도우미가 `Document(...)` 대신 `Chunk.from_metadata(...)`를 쓰고, 청크의 `.page_content`를 `.text`로 읽는다. 기대값은 바꾸지 않았다.
+- 정수가 아닌 `page` 값은 `extra`에 그대로 남겨 다시 쓸 때 잃지 않는다. `source`, `file_type`, `loader`가 빈 문자열이면 metadata에서 뺀다 (우리 로더는 항상 채운다).
+
+### 9.6 2단계에서 정한 것
+
+- **`--reasoning-effort`** (구조 변경 전의 별도 커밋): Ollama의 OpenAI 호환 주소는 `chat_template_kwargs.enable_thinking=false`를 무시한다. 첫 실제 실행에서 요청 하나가 48초씩 걸린 원인이다. `reasoning_effort: "none"`을 보내면 꺼진다 (같은 요약 요청 41.6초 → 2.2초). 옵션을 주지 않으면 요청은 이전과 같다. 계획서의 "옵션은 바꾸지 않는다"보다 먼저 생긴 변경이라 기준 커밋 바로 다음에 따로 넣었다.
+- **ragas의 단계를 나눈 방법**: 변환 세 개(요약, 추출, 관계)는 `apply_transforms`를 변환 하나씩 부른다. 질문자는 `generate_personas_from_kg`를 먼저 불러 `TestsetGenerator(persona_list=...)`로 넘긴다 (전에는 `generate()` 안에서 만들었다. 호출하는 함수와 인자는 같다). 시나리오와 질문·정답은 `TestsetGenerator.generate()` 한 번 안에서 도는데, 감싼 합성기(`GuardedSynthesizer`)가 첫 샘플이 시작될 때 시나리오 단계를 닫고 다음 단계를 연다. ragas는 시나리오를 전부 만든 뒤에 샘플을 만든다.
+- **프롬프트 번역(`adapt_prompts`)의 요청 수**는 시나리오 단계에 넣고 요약 줄에 "(프롬프트 번역 LLM n회 포함)"으로 따로 적는다. 단계를 일곱 개로 늘리지 않고도 단계별 합이 전체와 맞는다.
+- **ragas 자체 막대 끄기**: ragas 0.4.4는 모든 tqdm 막대를 `ragas.utils.ProgressBarManager`에서 `ragas.utils.tqdm`으로 만든다. 생성하는 동안만 그 이름을 `disable=True`를 붙이는 함수로 바꾼다 (`quiet_ragas_bars`). ragas가 이 구조를 바꾸면 막대가 다시 보일 뿐 동작은 같다. 막대가 꺼졌는지는 테스트가 stderr를 보고 확인한다.
+- **화면 출력은 stdout 한 곳으로** 보낸다 (진행 줄, 단계 요약, 마지막 리포트). 전에는 ragas 막대가 stderr로 갔다. 파일로 돌릴 때 `2>&1` 없이도 순서가 맞고, 쓸 때마다 flush한다.
+- **실패 수의 뜻**: 요약 줄의 "실패 n"은 건너뛴 항목 수(청크, 작업, 샘플, context)다. 재시도로 살아난 요청 실패는 "LLM 74회(요청 실패 1)"처럼 요청 수 옆에 적는다.
+- **질문·정답 단계의 분모**는 시나리오 수다. 합성기별로 올림해서 나누므로 요청한 수보다 많을 수 있고, 그때는 "요청한 n개만 저장"이 붙는다.
+- `GenerateReport`에 `unmatched`(근거 본문을 청크와 맞추지 못한 후보 수)를 더했다. 마지막 리포트의 글은 그대로다.
+- `get_generator`와 두 생성기에 `reporter` 인자가 생겼다. `tests/test_cli.py`의 가짜 생성기가 이 인자를 받도록 시그니처만 고쳤다 (단언은 그대로).
+
+### 9.7 범위 밖이라 구현하지 않은 제안
+
+- **개체명 걸러 내기**: 첫 실제 실행의 후보 `ragas-0001`은 형법 제1조와 법무부 연락처를 한 질문에 묶었다. 1쪽 머리의 "법무부(형사법제과) 02-..." 줄이 청크에 남아 개체명으로 뽑힌 것이다. 전화번호·부서명 같은 개체명을 관계 계산에서 빼거나, 관계 단계 요약에서 선이 가장 많은 개체명 몇 개를 같이 보여 주면 원인을 바로 알 수 있다.
+- **머리글 제거 보강**: 위 연락처 줄은 1쪽에만 있어 "60% 이상의 쪽에서 반복"에 걸리지 않는다. 문서 첫 쪽의 발행 정보 줄을 지우는 규칙이 필요한지는 문서 종류를 더 본 뒤에 정한다.
+- **관계 문턱값 조정**: 관계 단계 요약에서 선이 청크 수에 비해 지나치게 많으면(예: 청크 74개에 개체명 겹침 수백 개) `OverlapScoreBuilder`의 `threshold=0.01`이 느슨하다는 뜻이다. 문턱값을 옵션으로 여는 것은 청킹·생성 방식 변경이라 하지 않았다.
+- **단계별 요청 실패 사유**: 요약 줄에는 수만 나온다. 사유는 마지막 리포트에 모여 있다.
+- **openai 패키지 상한**: 지금 환경에는 openai 3.3.0이 깔렸고(pyproject는 `>=1.109`) 테스트와 실제 호출이 통과한다. 상한은 계획서에 없어 넣지 않았다.
+
+### 9.8 검토 때 볼 항목 자가 점검
+
+| 항목 | 결과 | 근거 |
+|---|---|---|
+| 네 컨텍스트가 서로를 import하지 않는가 (테스트가 실제로 위반을 잡는가) | 예 | `test_source_follows_dependency_rules`, `test_checker_catches_context_importing_another_context` 외 5개 |
+| 1단계 커밋들에서 테스트의 단언이 바뀌지 않았는가 | 예 | 1단계 여섯 커밋의 `tests/` 변경은 import 줄과 새 파일 `test_architecture.py`뿐 |
+| CLI 명령, 옵션, 종료 코드, 두 jsonl 형식이 그대로인가 | 예. 늘어난 옵션은 `--log-file`(계획서)과 `--reasoning-effort`(9.6) | `--help` 비교, `test_chunks_jsonl_row_is_unchanged`, 형법 chunks.jsonl 바이트 비교, 기존 CLI 테스트 |
+| generate extra 없이 validate, prepare, check가 도는가 | 예 | `test_validate_prepare_check_run_without_generate_extra` (openai, ragas, deepeval의 import를 막은 프로세스에서 실행) |
+| 진행 출력에 단계 이름이 보이고 GuardedTransform이 보이지 않는가 | 예 | `test_ragas_console_output_shows_stage_names_not_wrapper_names` (stdout과 stderr 둘 다 본다) |
+| 관계 단계 요약의 선 개수가 실제 그래프와 맞는가 | 예 | `test_relation_stats_match_the_graph` (손으로 만든 그래프), `test_ragas_stages_arrive_in_order_with_names_and_totals` (8C2 = 28) |
+| 단계별 LLM 요청 수의 합이 마지막 리포트의 requests와 맞는가 | 예 | `test_generate_prints_stages_above_report_and_writes_log_file`, 실패와 번역이 있는 경우도 각각 테스트 |
+| 로그 파일에 본문, 주소, 키가 들어가지 않는가 | 예 | 같은 테스트: 본문 조각, `llm.test`, `http://`, 키 문자열이 로그에 없음 |
+
+### 9.9 납품물
+
+| 납품물 | 상태 |
+|---|---|
+| 소스와 테스트, 갱신한 README.md(구조, `--log-file`, 진행 출력 예시) | 있음 |
+| reports/pytest.txt | 있음 (250 통과, 15 건너뜀: 실제 문서 12, 실제 호출 3) |
+| reports/generate_stages.txt | 있음. 가짜 LLM으로 돌린 것이다 (`python tests/make_stage_report.py`) |
+| NOTES.md 9장 | 이 장 |
+
+### 9.10 실제 서버로 돌린 결과
+
+로컬 Ollama(qwen3.5:9b, bge-m3), 형법 pdf 1개, 청크 74개, 후보 30개. 출력은 파일로 돌렸다 (`--reasoning-effort none --timeout 300 --log-file ...`).
+아래는 로그 파일 전문이다. 화면 출력은 이것에 10% 단위 진행 줄 27줄이 더해진 41줄이었고(이전 실행은 막대 한 칸마다 한 줄이 쌓였다), stderr는 비어 있었다.
+
+```text
+[1/6] 요약                  74/74  4분 18초  LLM 74회  실패 0
+[2/6] 임베딩·주제·개체명    222/222  임베딩 74, 주제 74, 개체명 74  5분 48초  LLM 148회  임베딩 74회  실패 0
+[3/6] 관계                  유사도 431개, 개체명 겹침 328개, 선 없는 청크 0개
+[4/6] 질문자                3명: International Criminal Law Advisor, Korean Criminal Law Analyst, Criminal Defense Consultant  LLM 3회
+[5/6] 시나리오              30개 (단일 10, 넓은 주제 10, 특정 대상 10)  2분 09초  LLM 48회(요청 실패 1)  (프롬프트 번역 LLM 8회 포함)
+[6/6] 질문·정답             30/30  2분 14초  LLM 30회  실패 0  출처 못 찾음 0
+generator=ragas  requested=30  produced=30  skipped=0
+llm    requests=303  ok=302  failed=1 (APIConnectionError x1)  think_stripped=0  reasoning_separated=0  truncated=0
+embed  requests=74  ok=74  failed=0 (-)  think_stripped=0  reasoning_separated=0  truncated=0
+  note: language=ko  llm_context='Write the query and the answer in Korean (한국어), the same language as the context. Do not translate names or terms.'
+  note: synthesizers: single_hop_specific_query_synthesizer, multi_hop_abstract_query_synthesizer, multi_hop_specific_query_synthesizer
+  note: adapt_prompts(korean) applied to 3 synthesizer(s)
+saved: stages-run.candidates.jsonl  (30 candidates, chunks=74)
+```
+
+- 단계별 LLM 요청 수의 합 74 + 148 + 3 + 48 + 30 = 303이 마지막 리포트의 `requests=303`과 같다. 임베딩 74도 같다.
+- 관계 단계: 청크 74개에 유사도 선 431개, 개체명 겹침 선 328개다. 청크 하나에 평균 20개쯤 이어져 있어, 무관한 청크가 묶일 수 있다는 것이 이제 생성 도중에 보인다 (9.7의 문턱값 제안).
+- 질문자 이름은 영어로 나왔다. ragas의 질문자 프롬프트에는 언어 지시가 들어가지 않는다. 질문과 정답은 한국어다.
+- 요청 실패 1건(APIConnectionError)은 시나리오 단계에서 났고 재시도로 넘어갔다.
+- 이 후보 30개는 `check`에서 30개 모두 합격했다. 정답의 정확성은 사람 검수 몫이다.

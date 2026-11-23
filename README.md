@@ -11,6 +11,33 @@ chunks.jsonl ──generate --generator ragas|deepeval──▶ candidates.jsonl
 candidates.jsonl ──check──▶ 후보별 합격 여부, 생성기별 비교 요약
 ```
 
+## 구조
+
+코드는 네 개의 컨텍스트와 공통 도메인 모델로 나뉜다. 컨텍스트끼리는 서로를 import하지 않고 `domain`의 타입과 두 JSONL 파일로만 주고받는다.
+
+```text
+src/golden_set/
+├── domain/        공통 언어: Chunk, GoldenCandidate, 언어 판별, chunks.jsonl·candidates.jsonl 읽기·쓰기
+├── loading/       ① 파일 → 문서        loaders/, registry.py, validation.py
+├── chunking/      ② 문서 → 청크        cleaning.py, chunker.py
+├── generation/    ③ 청크 → 골든 후보   generator.py, matching.py, progress.py, llm/, ragas/, deepeval/
+├── evaluation/    ④ 후보 → 판정        checks.py, summary.py, output.py
+└── cli/           명령행               main.py, llm_options.py, commands/
+```
+
+| 패키지 | import해도 되는 것 |
+|---|---|
+| `domain` | 표준 라이브러리만 |
+| `loading` | `domain`, langchain_core, 각 로더 라이브러리 |
+| `chunking` | `domain`, langchain_core (로더가 낸 `Document`를 받는다) |
+| `generation` | `domain`, openai(`llm/` 안에서만), ragas(`ragas/` 안에서만), deepeval(`deepeval/` 안에서만) |
+| `evaluation` | `domain` |
+| `cli` | 전부 |
+
+이 표는 `tests/test_architecture.py`가 지킨다. `src/golden_set/` 아래 모든 import 문을 읽어 위반한 줄을 파일과 줄 번호로 보고한다.
+무거운 패키지(openai, ragas, deepeval)는 필요할 때만 import하므로 `validate`, `prepare`, `check`는 `generate` extra 없이 돈다.
+옛 경로와 새 경로의 대응표는 [NOTES.md](NOTES.md) 9장에 있다.
+
 ## 설치
 
 ```bash
@@ -102,10 +129,13 @@ pytest tests/test_real_calls.py -v -s
 - `ragas`: 청크를 그대로 지식 그래프의 노드로 넣고 `TestsetGenerator`로 만든다. 임베딩 서버가 필요하다. 근거 본문을 chunks.jsonl과 대조해 출처를 채운다.
 - `deepeval`: 같은 파일의 이웃한 청크 1~3개(`--context-chunks`, 기본 3)를 context 하나로 묶어 `generate_goldens_from_contexts`로 만든다. 출처는 정확히 채운다.
 - `--language auto|ko|en`: 질문 언어. `auto`는 청크의 한글 비율로 정한다. 두 도구 모두 프롬프트에 언어 지시를 넣는다.
-- LLM 옵션: `--concurrency`(기본 4), `--timeout`(120초), `--max-tokens`(4096), `--temperature`(0.2), `--keep-thinking`(추론 끄기 옵션을 보내지 않음), `--no-json-mode`(`response_format=json_object`를 붙이지 않음).
+- LLM 옵션: `--concurrency`(기본 4), `--timeout`(120초), `--max-tokens`(4096), `--temperature`(0.2), `--keep-thinking`(추론 끄기 옵션을 보내지 않음), `--reasoning-effort LEVEL`(`reasoning_effort` 값을 보냄), `--no-json-mode`(`response_format=json_object`를 붙이지 않음).
+- Ollama는 추론 끄기 옵션(`chat_template_kwargs.enable_thinking=false`)을 무시한다. `--reasoning-effort none`을 줘야 추론이 꺼진다 (qwen3.5:9b에서 요청 하나가 41.6초 → 2.2초).
+- 도는 동안 지금 어느 단계인지와 진행을 보여 주고, 단계가 끝날 때마다 한 줄 요약을 찍는다 (아래 "출력 예시: generate").
+- `--log-file <경로>`: 단계 요약과 마지막 리포트를 그 파일에도 쓴다. 진행 줄, 본문 내용, 서버 주소, 키는 쓰지 않는다.
 - 끝에 요청 수, 성공 수, 실패 수와 사유, 건너뛴 항목을 출력한다. 응답을 파싱하지 못한 항목은 멈추지 않고 건너뛴다. 후보가 0개면 1, 접속 정보나 입력 파일이 없으면 2.
 
-**`check candidates.jsonl [--chunks chunks.jsonl] [--out report.csv]`** — LLM 없이 후보마다 합격 여부를 낸다. 항목: 필수 필드, 출처(chunk_id가 chunks.jsonl에 있는지), 질문 길이(공백 제외 10~300자), 언어 일치, 중복, 추론 찌꺼기(`<think>`, 코드 울타리, JSON 조각), 지시어 질문("위 글", "the passage" 등). 기준값은 `check.CheckThresholds`에 모여 있다.
+**`check candidates.jsonl [--chunks chunks.jsonl] [--out report.csv]`** — LLM 없이 후보마다 합격 여부를 낸다. 항목: 필수 필드, 출처(chunk_id가 chunks.jsonl에 있는지), 질문 길이(공백 제외 10~300자), 언어 일치, 중복, 추론 찌꺼기(`<think>`, 코드 울타리, JSON 조각), 지시어 질문("위 글", "the passage" 등). 기준값은 `evaluation.checks.CheckThresholds`에 모여 있다.
 끝에 생성기별 요약(후보 수, 합격률, 불합격 사유별 건수, 질문 유형 분포, 언어 분포, 파일별 후보 수)을 나란히 낸다. 이 표가 두 도구를 같은 잣대로 비교하는 표다.
 `--chunks`를 생략하면 후보 파일 옆, 그다음 현재 폴더의 `chunks.jsonl`을 쓴다. 합격이 하나도 없으면 1.
 
@@ -133,13 +163,44 @@ pytest tests/test_real_calls.py -v -s
 pytest
 ```
 
-LLM 서버 없이 전부 돈다 (실제 문서 테스트와 실제 호출 테스트는 환경 변수가 없으면 건너뛴다). 픽스처 파일은 테스트가 직접 만든다. 같은 파일을 디스크에 깔아 보려면 `python tests/make_fixtures.py`를 실행한다 (`tests/fixtures/`, git에는 넣지 않는다).
+LLM 서버 없이 전부 돈다 (실제 문서 테스트와 실제 호출 테스트는 환경 변수가 없으면 건너뛴다). 생성 단계는 실제 ragas·deepeval에 가짜 LLM(`tests/ragas_fake.py`)을 물려 끝까지 돌린다. 픽스처 파일은 테스트가 직접 만든다. 같은 파일을 디스크에 깔아 보려면 `python tests/make_fixtures.py`를 실행한다 (`tests/fixtures/`, git에는 넣지 않는다).
 
 실제 문서로 로더를 검증하려면 문서 폴더를 환경 변수로 준다. 검사 항목은 [NOTES.md](NOTES.md) 6장에 있다.
 
 ```bash
 GOLDEN_SET_REAL_DOCS=<문서 폴더> pytest tests/test_real_docs.py -v
 ```
+
+## 출력 예시: generate
+
+ragas는 여섯 단계, deepeval은 두 단계로 돈다. 단계가 끝날 때마다 한 줄 요약이 남고, 마지막 리포트는 그 아래에 이전과 같은 꼴로 찍힌다.
+
+```text
+[1/6] 요약                  40/40  0초  LLM 40회  실패 0
+[2/6] 임베딩·주제·개체명    120/120  임베딩 40, 주제 40, 개체명 40  0초  LLM 80회  임베딩 40회  실패 0
+[3/6] 관계                  유사도 780개, 개체명 겹침 780개, 선 없는 청크 0개
+[4/6] 질문자                3명: 형사 전문 변호사, 법학과 학생, 사법경찰관  LLM 3회
+[5/6] 시나리오              30개 (단일 10, 넓은 주제 10, 특정 대상 10)  0초  LLM 40회
+[6/6] 질문·정답             30/30  0초  LLM 30회  실패 0  출처 못 찾음 0
+generator=ragas  requested=30  produced=30  skipped=0
+llm    requests=193  ok=193  failed=0 (-)  think_stripped=0  reasoning_separated=0  truncated=0
+embed  requests=40  ok=40  failed=0 (-)  think_stripped=0  reasoning_separated=0  truncated=0
+```
+
+| 단계 | 요약에 나오는 것 |
+|---|---|
+| 요약 | 요약을 만든 청크 수/전체, 걸린 시간, LLM 요청 수, 실패한 청크 수 |
+| 임베딩·주제·개체명 | 끝난 작업 수/전체, 작업 종류별 완료 수, 걸린 시간, LLM·임베딩 요청 수, 실패 수 |
+| 관계 | 종류별 선의 수(요약 유사도, 개체명 겹침), 선이 하나도 없는 청크 수. 선이 너무 많으면 무관한 청크가 묶인다는 신호다 |
+| 질문자 | 만든 수와 각 질문자의 이름 |
+| 시나리오 | 합성기별 시나리오 수(단일, 넓은 주제, 특정 대상), 걸린 시간. 프롬프트 번역에 쓴 LLM 요청 수가 여기에 들어간다 |
+| 질문·정답 | 만든 후보 수/시나리오 수, 걸린 시간, 실패 수, 근거 본문을 청크와 맞추지 못한 후보 수 |
+| (deepeval) context 구성 | 만든 context 수와 고른 수, context당 후보 수, 파일별 분포 |
+| (deepeval) 질문 생성 | 끝난 context 수/전체, 만든 후보 수, 걸린 시간, 실패한 context 수 |
+
+- 단계별 LLM 요청 수를 더하면 마지막 리포트의 `requests`와 같다.
+- 터미널에서는 진행 줄 하나를 제자리에서 다시 그린다. 출력을 파일로 돌리면 10%마다 한 줄씩만 찍는다.
+- 위는 가짜 LLM으로 돌린 것이다 (`python tests/make_stage_report.py`). 진행 줄과 로그 파일까지 포함한 전체는 [reports/generate_stages.txt](reports/generate_stages.txt).
 
 ## 출력 예시: prepare
 
