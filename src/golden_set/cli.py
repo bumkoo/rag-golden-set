@@ -266,9 +266,11 @@ def cmd_generate(args: argparse.Namespace) -> int:
 
 def cmd_check(args: argparse.Namespace) -> int:
     """candidates.jsonl을 LLM 없이 검증하고 생성기별 요약을 낸다. 출처 확인에 chunks.jsonl이 필요하다."""
-    from golden_set.check import check_candidates, format_summary, print_table, summarize, write_csv
     from golden_set.domain.candidate import CandidateError
     from golden_set.domain.store import read_candidates, read_chunks
+    from golden_set.evaluation.checks import check_candidates
+    from golden_set.evaluation.output import print_table, write_csv
+    from golden_set.evaluation.summary import format_summary, summarize
 
     chunks_path = args.chunks
     if chunks_path is None:  # 후보 파일 옆, 그다음 현재 폴더의 chunks.jsonl

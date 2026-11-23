@@ -30,7 +30,7 @@ def test_ping() -> None:
 
 def _generate_and_check(generator: str, chunks_file: Path, size: int = 5) -> None:
     from golden_set.domain.store import read_candidates, read_chunks
-    from golden_set.check import check_candidates
+    from golden_set.evaluation.checks import check_candidates
 
     out = chunks_file.parent / f"{generator}.candidates.jsonl"
     assert main(["generate", str(chunks_file), "--generator", generator, "--size", str(size), "--out", str(out)]) == 0

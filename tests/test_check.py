@@ -7,7 +7,9 @@ import pytest
 
 from golden_set.domain.candidate import GoldenCandidate, Source, make_id
 from golden_set.domain.store import write_candidates
-from golden_set.check import CHECK_NAMES, CheckThresholds, check_candidates, check_one, duplicate_key, format_summary, summarize, write_csv
+from golden_set.evaluation.checks import CHECK_NAMES, CheckThresholds, check_candidates, check_one, duplicate_key
+from golden_set.evaluation.output import write_csv
+from golden_set.evaluation.summary import format_summary, summarize
 
 KO_CTX = "강호의 규율은 무공이 아니라 신의에서 나온다고 장문인은 말했다. 제자는 그 뜻을 오래도록 헤아리지 못했다."
 EN_CTX = "The master never drew the sword, and the pupil did not understand why for many years."
