@@ -1,6 +1,6 @@
-"""reports/generate_stages.txt를 만든다: 가짜 LLM으로 돌린 generate의 화면 출력과 로그 파일.
+"""tests/examples/generate_stages.txt를 만든다: 가짜 LLM으로 돌린 generate의 화면 출력과 로그 파일.
 
-    python tests/make_stage_report.py > reports/generate_stages.txt
+    python tests/make_stage_report.py > tests/examples/generate_stages.txt
 
 서버는 필요 없다. 실제 ragas가 돌고 LLM·임베딩 응답만 tests/ragas_fake.py의 가짜가 낸다.
 """
